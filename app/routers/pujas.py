@@ -1,0 +1,128 @@
+from fastapi import APIRouter, Depends, HTTPException, status, Query
+from sqlalchemy.orm import Session
+from typing import List
+from app.database import get_db
+from app import schemas, crud
+from app.auth import get_admin_user, get_current_active_user
+from app.models import User
+
+router = APIRouter(prefix="/pujas", tags=["pujas"])
+
+
+@router.get("/", response_model=List[schemas.PujaResponse])
+def get_pujas(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=100),
+    db: Session = Depends(get_db)
+):
+    """Get all pujas (Public endpoint)."""
+    return crud.PujaCRUD.get_pujas(db, skip=skip, limit=limit)
+
+
+@router.get("/{puja_id}", response_model=schemas.PujaResponse)
+def get_puja(puja_id: int, db: Session = Depends(get_db)):
+    """Get puja by ID (Public endpoint)."""
+    puja = crud.PujaCRUD.get_puja(db, puja_id)
+    if not puja:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Puja not found"
+        )
+    return puja
+
+
+@router.post("/", response_model=schemas.PujaResponse)
+def create_puja(
+    puja: schemas.PujaCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_admin_user)
+):
+    """Create a new puja (Admin only)."""
+    return crud.PujaCRUD.create_puja(db, puja)
+
+
+@router.put("/{puja_id}", response_model=schemas.PujaResponse)
+def update_puja(
+    puja_id: int,
+    puja_update: schemas.PujaUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_admin_user)
+):
+    """Update puja (Admin only)."""
+    puja = crud.PujaCRUD.update_puja(db, puja_id, puja_update)
+    if not puja:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Puja not found"
+        )
+    return puja
+
+
+@router.delete("/{puja_id}")
+def delete_puja(
+    puja_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_admin_user)
+):
+    """Delete puja (Admin only)."""
+    success = crud.PujaCRUD.delete_puja(db, puja_id)
+    if not success:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Puja not found"
+        )
+    return {"message": "Puja deleted successfully"}
+
+
+# Puja Benefits endpoints
+@router.get("/{puja_id}/benefits", response_model=List[schemas.PujaBenefitResponse])
+def get_puja_benefits(puja_id: int, db: Session = Depends(get_db)):
+    """Get benefits for a specific puja (Public endpoint)."""
+    # Verify puja exists
+    puja = crud.PujaCRUD.get_puja(db, puja_id)
+    if not puja:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Puja not found"
+        )
+    return crud.PujaBenefitCRUD.get_puja_benefits(db, puja_id)
+
+
+@router.post("/{puja_id}/benefits", response_model=schemas.PujaBenefitResponse)
+def create_puja_benefit(
+    puja_id: int,
+    benefit: schemas.PujaBenefitBase,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_admin_user)
+):
+    """Add benefit to puja (Admin only)."""
+    # Verify puja exists
+    puja = crud.PujaCRUD.get_puja(db, puja_id)
+    if not puja:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Puja not found"
+        )
+    
+    benefit_data = schemas.PujaBenefitCreate(
+        puja_id=puja_id,
+        benefit_title=benefit.benefit_title,
+        benefit_description=benefit.benefit_description
+    )
+    return crud.PujaBenefitCRUD.create_puja_benefit(db, benefit_data)
+
+
+@router.delete("/benefits/{benefit_id}")
+def delete_puja_benefit(
+    benefit_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_admin_user)
+):
+    """Delete puja benefit (Admin only)."""
+    success = crud.PujaBenefitCRUD.delete_puja_benefit(db, benefit_id)
+    if not success:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Benefit not found"
+        )
+    return {"message": "Benefit deleted successfully"}

@@ -1,0 +1,25 @@
+# Core FastAPI packages
+fastapi
+uvicorn[standard]
+sqlalchemy
+alembic
+python-multipart
+python-decouple
+pydantic[email]
+
+# Authentication
+python-jose[cryptography]
+passlib[bcrypt]
+
+# Database (try without psycopg2 first)
+# psycopg2-binary
+
+# HTTP client
+httpx
+
+# File handling
+aiofiles
+
+# Testing
+pytest
+pytest-asyncio
