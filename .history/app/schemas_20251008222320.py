@@ -1,7 +1,6 @@
 from pydantic import BaseModel, EmailStr, validator
 from typing import Optional, List
-from datetime import datetime
-import datetime as dt
+from datetime import datetime, date, time
 from decimal import Decimal
 from app.models import UserRole, BookingStatus, PaymentStatus
 
@@ -81,8 +80,8 @@ class PujaBase(BaseModel):
     name: str
     sub_heading: str
     description: Optional[str] = None
-    date: Optional[dt.date] = None
-    time: Optional[dt.time] = None
+    date: Optional[date] = None
+    time: Optional[time] = None
     
     # Temple details
     temple_image_url: Optional[str] = None
@@ -115,8 +114,8 @@ class PujaUpdate(BaseModel):
     name: Optional[str] = None
     sub_heading: Optional[str] = None
     description: Optional[str] = None
-    date: Optional[dt.date] = None
-    time: Optional[dt.time] = None
+    date: Optional[date] = None
+    time: Optional[time] = None
     
     # Temple details
     temple_image_url: Optional[str] = None

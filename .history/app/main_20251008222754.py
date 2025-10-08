@@ -54,7 +54,6 @@ app.include_router(bookings.router, prefix="/api/v1")
 app.include_router(payments.router, prefix="/api/v1")
 app.include_router(admin.router, prefix="/api/v1")
 app.include_router(uploads.router, prefix="/api/v1")
-app.include_router(blogs.router, prefix="/api/v1")
 
 
 @app.get("/")

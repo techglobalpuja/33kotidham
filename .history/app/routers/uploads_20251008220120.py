@@ -45,8 +45,8 @@ async def upload_puja_image(
     
     try:
         file_path = await FileManager.upload_image(file, f"pujas/{puja_id}")
-        # Return relative URL starting with uploads
-        file_url = f"uploads{file_path}"
+        # Return relative URL starting with /uploads
+        file_url = f"/uploads{file_path}"
         
         # Create puja image record
         from app.models import PujaImage

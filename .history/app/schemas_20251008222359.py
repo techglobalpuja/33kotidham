@@ -115,8 +115,8 @@ class PujaUpdate(BaseModel):
     name: Optional[str] = None
     sub_heading: Optional[str] = None
     description: Optional[str] = None
-    date: Optional[dt.date] = None
-    time: Optional[dt.time] = None
+    date: Optional[date] = None
+    time: Optional[time] = None
     
     # Temple details
     temple_image_url: Optional[str] = None
