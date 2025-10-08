@@ -413,7 +413,6 @@ class BlogListResponse(BaseResponse):
     id: int
     title: str
     subtitle: Optional[str] = None
-    thumbnail_image: Optional[str] = None
     meta_description: Optional[str] = None
     tags: Optional[str] = None
     category_id: Optional[int] = None
