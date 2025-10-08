@@ -390,12 +390,6 @@ class BlogUpdate(BaseModel):
     is_active: Optional[bool] = None
     publish_time: Optional[datetime] = None
     slug: Optional[str] = None
-    
-    @validator('category_id')
-    def validate_category_id(cls, v):
-        if v is not None and v <= 0:
-            return None  # Convert invalid category_id to None
-        return v
 
 
 class BlogResponse(BlogBase, BaseResponse):
