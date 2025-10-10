@@ -121,7 +121,7 @@ class PujaImage(Base):
     __tablename__ = "puja_images"
 
     id = Column(Integer, primary_key=True, index=True)
-    puja_id = Column(Integer, ForeignKey("pujas.id", ondelete="CASCADE"), nullable=False)
+    puja_id = Column(Integer, ForeignKey("pujas.id"), nullable=False)
     image_url = Column(Text, nullable=False)
 
     # Relationships
