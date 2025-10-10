@@ -111,16 +111,16 @@ class Puja(Base):
         cascade="all, delete-orphan",
         passive_deletes=True,
     )
-    bookings = relationship("Booking", back_populates="puja")
-    puja_plans = relationship("PujaPlan", back_populates="puja")
-    puja_chadawas = relationship("PujaChadawa", back_populates="puja")
-    # Ensure benefits are deleted when parent Puja is deleted
-    benefits = relationship(
-        "PujaBenefit",
-        back_populates="puja",
-        cascade="all, delete-orphan",
-        passive_deletes=True,
-    )
+        bookings = relationship("Booking", back_populates="puja")
+        puja_plans = relationship("PujaPlan", back_populates="puja")
+        puja_chadawas = relationship("PujaChadawa", back_populates="puja")
+        # Ensure benefits are deleted when parent Puja is deleted
+        benefits = relationship(
+            "PujaBenefit",
+            back_populates="puja",
+            cascade="all, delete-orphan",
+            passive_deletes=True,
+        )
 
 
 class PujaImage(Base):

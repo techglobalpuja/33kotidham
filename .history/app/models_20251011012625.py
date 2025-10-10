@@ -111,16 +111,16 @@ class Puja(Base):
         cascade="all, delete-orphan",
         passive_deletes=True,
     )
-    bookings = relationship("Booking", back_populates="puja")
-    puja_plans = relationship("PujaPlan", back_populates="puja")
-    puja_chadawas = relationship("PujaChadawa", back_populates="puja")
-    # Ensure benefits are deleted when parent Puja is deleted
-    benefits = relationship(
-        "PujaBenefit",
-        back_populates="puja",
-        cascade="all, delete-orphan",
-        passive_deletes=True,
-    )
+        bookings = relationship("Booking", back_populates="puja")
+        puja_plans = relationship("PujaPlan", back_populates="puja")
+        puja_chadawas = relationship("PujaChadawa", back_populates="puja")
+        # Ensure benefits are deleted when parent Puja is deleted
+        benefits = relationship(
+            "PujaBenefit",
+            back_populates="puja",
+            cascade="all, delete-orphan",
+            passive_deletes=True,
+        )
 
 
 class PujaImage(Base):
@@ -249,7 +249,7 @@ class PujaBenefit(Base):
     __tablename__ = "puja_benefits"
 
     id = Column(Integer, primary_key=True, index=True)
-    puja_id = Column(Integer, ForeignKey("pujas.id", ondelete="CASCADE"), nullable=False)
+    puja_id = Column(Integer, ForeignKey("pujas.id"), nullable=False)
     benefit_title = Column(String(200), nullable=False)
     benefit_description = Column(Text, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
