@@ -98,8 +98,8 @@ def upload_puja_image(token, puja_id, image_path):
         if response.status_code == 200:
             result = response.json()
             print(f"✅ Image uploaded to puja!")
-            print(f"   Image ID: {result['image_id']}")
-            print(f"   URL: {result['file_url']}")
+            print(f"✅ Image ID: {result['image_id']}")
+            print(f"✅ URL: {result['file_url']}")
             return result
         else:
             print(f"❌ Upload failed: {response.status_code}")

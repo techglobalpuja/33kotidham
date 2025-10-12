@@ -67,6 +67,12 @@ instance/
 
 # Scrapy stuff:
 .scrapy
+.history/
+
+add_images_to_puja.db
+
+add_images_to_puja
+.env/
 
 # Sphinx documentation
 docs/_build/
@@ -177,3 +183,5 @@ logs/
 
 .env
 *env*
+add_images_to_puja.py
+add_images_to_puja.py
