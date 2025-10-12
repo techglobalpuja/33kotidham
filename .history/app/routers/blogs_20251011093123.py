@@ -34,7 +34,7 @@ def get_blogs(
 def search_blogs(
     q: str = Query(..., min_length=2),
     skip: int = Query(0, ge=0),
-    limit: int = Query(10, ge=1, le=100),  # Changed default to 10 for better performance
+    limit: int = Query(100, ge=1, le=100),
     db: Session = Depends(get_db)
 ):
     """Search blogs by title, subtitle, content, or tags (Public endpoint)."""
@@ -80,7 +80,7 @@ def get_blog_by_slug(slug: str, db: Session = Depends(get_db)):
 @router.get("/admin/all", response_model=List[schemas.BlogResponse])
 def get_all_blogs_admin(
     skip: int = Query(0, ge=0),
-    limit: int = Query(50, ge=1, le=100),  # Changed default to 50 for better performance
+    limit: int = Query(100, ge=1, le=100),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_admin_user)
 ):
@@ -142,7 +142,7 @@ def delete_blog(
 @router.get("/categories/", response_model=List[schemas.CategoryResponse])
 def get_categories(
     skip: int = Query(0, ge=0),
-    limit: int = Query(50, ge=1, le=100),  # Changed default to 50 for better performance
+    limit: int = Query(100, ge=1, le=100),
     active_only: bool = Query(True),
     db: Session = Depends(get_db)
 ):
