@@ -155,9 +155,50 @@ class PujaCRUD:
             return None
         
         update_data = puja_update.dict(exclude_unset=True)
+
+        # Handle plan_ids (relationship) - convert ids to Plan model instances
+        if 'plan_ids' in update_data:
+            plan_ids = update_data.pop('plan_ids') or []
+            if plan_ids:
+                plans = db.query(models.Plan).filter(models.Plan.id.in_(plan_ids)).all()
+            else:
+                plans = []
+            # Clear existing association rows safely to avoid StaleDataError
+            db.query(models.PujaPlan).filter(models.PujaPlan.puja_id == puja_id).delete(synchronize_session=False)
+            db.flush()
+            db_puja.plan_ids = plans
+
+        # Handle benefits - replace existing benefits with new ones if provided
+        if 'benefits' in update_data:
+            benefits = update_data.pop('benefits') or []
+            # delete existing benefits
+            db.query(models.PujaBenefit).filter(models.PujaBenefit.puja_id == puja_id).delete()
+            db.commit()
+            # add new benefits
+            for b in benefits:
+                # b is expected to be a dict-like with benefit_title and benefit_description
+                benefit_title = b.get('benefit_title') if isinstance(b, dict) else getattr(b, 'benefit_title', None)
+                benefit_description = b.get('benefit_description') if isinstance(b, dict) else getattr(b, 'benefit_description', None)
+                if benefit_title and benefit_description:
+                    db_benefit = models.PujaBenefit(
+                        puja_id=puja_id,
+                        benefit_title=benefit_title,
+                        benefit_description=benefit_description
+                    )
+                    db.add(db_benefit)
+
+        # Handle category field which may be provided as list in schemas but stored as string in model
+        if 'category' in update_data:
+            category_value = update_data.pop('category')
+            if isinstance(category_value, list):
+                db_puja.category = ','.join(category_value)
+            else:
+                db_puja.category = category_value
+
+        # Set remaining simple fields
         for field, value in update_data.items():
             setattr(db_puja, field, value)
-        
+
         db.commit()
         db.refresh(db_puja)
         return db_puja
