@@ -109,6 +109,7 @@ class PujaBase(BaseModel):
 
 class PujaCreate(PujaBase):
     benefits: Optional[List['PujaBenefitBase']] = None
+    plan_ids: Optional[List[int]] = None
 
 
 class PujaUpdate(BaseModel):
@@ -139,6 +140,7 @@ class PujaUpdate(BaseModel):
     
     # General
     category: Optional[str] = None
+    plan_ids: Optional[List[int]] = None
 
 
 class PujaImageResponse(BaseResponse):
@@ -167,6 +169,7 @@ class PujaResponse(PujaBase, BaseResponse):
     updated_at: datetime
     benefits: Optional[List[PujaBenefitResponse]] = []
     images: List[PujaImageResponse] = []
+    plan_ids: List[int] = []
 
 
 # Plan schemas

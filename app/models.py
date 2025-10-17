@@ -122,6 +122,13 @@ class Puja(Base):
         passive_deletes=True,
     )
 
+    # Plans
+    plan_ids = relationship(
+        "Plan",
+        secondary="puja_plans",
+        lazy="joined"
+    )
+
 
 class PujaImage(Base):
     __tablename__ = "puja_images"
@@ -147,8 +154,6 @@ class Plan(Base):
 
     # Relationships
     bookings = relationship("Booking", back_populates="plan")
-    
-    # Association object relationships
     puja_plans = relationship("PujaPlan", back_populates="plan")
 
 

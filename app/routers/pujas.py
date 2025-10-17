@@ -28,6 +28,9 @@ def get_puja(puja_id: int, db: Session = Depends(get_db)):
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Puja not found"
         )
+
+    # Include plan_ids in the response
+    puja.plan_ids = [plan.plan_id for plan in puja.puja_plans]
     return puja
 
 
@@ -38,7 +41,14 @@ def create_puja(
     current_user: User = Depends(get_admin_user)
 ):
     """Create a new puja (Admin only)."""
-    return crud.PujaCRUD.create_puja(db, puja)
+    created_puja = crud.PujaCRUD.create_puja(db, puja)
+
+    # Associate plan_ids if provided
+    if puja.plan_ids:
+        for plan_id in puja.plan_ids:
+            crud.PujaPlanCRUD.create_puja_plan(db, schemas.PujaPlanCreate(puja_id=created_puja.id, plan_id=plan_id))
+
+    return created_puja
 
 
 @router.put("/{puja_id}", response_model=schemas.PujaResponse)
@@ -55,6 +65,11 @@ def update_puja(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Puja not found"
         )
+
+    # Update plan_ids if provided
+    if puja_update.plan_ids is not None:
+        crud.PujaPlanCRUD.update_puja_plans(db, puja_id, puja_update.plan_ids)
+
     return puja
 
 
@@ -71,6 +86,10 @@ def delete_puja(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Puja not found"
         )
+
+    # Delete associated PujaPlan entries
+    crud.PujaPlanCRUD.delete_puja_plans(db, puja_id)
+
     return {"message": "Puja deleted successfully"}
 
 
