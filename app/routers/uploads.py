@@ -67,24 +67,25 @@ async def upload_puja_image(
 @router.delete("/puja-images/{image_id}")
 def delete_puja_image(
     image_id: int,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_admin_user)
 ):
     """Delete puja image (Admin only)."""
     from app.models import PujaImage
-    
+
     puja_image = db.query(PujaImage).filter(PujaImage.id == image_id).first()
     if not puja_image:
         raise HTTPException(status_code=404, detail="Image not found")
-    
+
     # Delete file from filesystem
     file_path = puja_image.image_url.replace(str(request.base_url).rstrip('/'), '')
     FileManager.delete_image(file_path)
-    
+
     # Delete database record
     db.delete(puja_image)
     db.commit()
-    
+
     return {"message": "Image deleted successfully"}
 
 
