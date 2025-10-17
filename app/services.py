@@ -4,7 +4,9 @@ import requests
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+import razorpay
 from app.config import settings
+
 class SMSService:
     """SMS service supporting both Twilio and MSG91."""
     
@@ -155,7 +157,7 @@ class SMSService:
         
         try:
             message = self.client.messages.create(
-                body=f"Your puja booking #{booking_id} has been confirmed. Thank you for choosing 33 Koti Dham!",
+                body=f"Your puja booking #{booking_id} has been confirmed.",
                 from_=settings.TWILIO_PHONE_NUMBER,
                 to=mobile
             )
@@ -164,6 +166,15 @@ class SMSService:
             print(f"SMS sending failed: {e}")
             return False
 
+def create_razorpay_order(amount, receipt_id):
+    client = razorpay.Client(auth=(settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET))
+    order = client.order.create({
+        "amount": int(amount * 100),  # Amount in paise
+        "currency": "INR",
+        "receipt": str(receipt_id),
+        "payment_capture": 1
+    })
+    return order
 
 class EmailService:
     """Email service for sending notifications."""
