@@ -4,6 +4,7 @@ from datetime import datetime
 import datetime as dt
 from decimal import Decimal
 from app.models import UserRole, BookingStatus, PaymentStatus
+from app import models
 
 
 # Base schemas
@@ -170,6 +171,12 @@ class PujaResponse(PujaBase, BaseResponse):
     benefits: Optional[List[PujaBenefitResponse]] = []
     images: List[PujaImageResponse] = []
     plan_ids: List[int] = []
+
+    @validator("plan_ids", pre=True, each_item=False)
+    def extract_plan_ids(cls, value):
+        if isinstance(value, list) and all(isinstance(plan, models.Plan) for plan in value):
+            return [plan.id for plan in value]
+        return value
 
 
 # Plan schemas

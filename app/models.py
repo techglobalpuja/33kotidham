@@ -112,7 +112,12 @@ class Puja(Base):
         passive_deletes=True,
     )
     bookings = relationship("Booking", back_populates="puja")
-    puja_plans = relationship("PujaPlan", back_populates="puja")
+    puja_plans = relationship(
+        "PujaPlan",
+        back_populates="puja",
+        cascade="all, delete-orphan",
+        passive_deletes=True
+    )
     puja_chadawas = relationship("PujaChadawa", back_populates="puja")
     # Ensure benefits are deleted when parent Puja is deleted
     benefits = relationship(
@@ -126,7 +131,8 @@ class Puja(Base):
     plan_ids = relationship(
         "Plan",
         secondary="puja_plans",
-        lazy="joined"
+        back_populates="pujas",
+        overlaps="puja_plans"
     )
 
 
@@ -154,7 +160,17 @@ class Plan(Base):
 
     # Relationships
     bookings = relationship("Booking", back_populates="plan")
-    puja_plans = relationship("PujaPlan", back_populates="plan")
+    puja_plans = relationship(
+        "PujaPlan",
+        back_populates="plan",
+        overlaps="plan_ids"
+    )
+    pujas = relationship(
+        "Puja",
+        secondary="puja_plans",
+        back_populates="plan_ids",
+        overlaps="puja_plans"
+    )
 
 
 class Chadawa(Base):
@@ -234,8 +250,16 @@ class PujaPlan(Base):
     plan_id = Column(Integer, ForeignKey("plans.id"), nullable=False)
 
     # Relationships
-    puja = relationship("Puja", back_populates="puja_plans")
-    plan = relationship("Plan", back_populates="puja_plans")
+    puja = relationship(
+        "Puja",
+        back_populates="puja_plans",
+        overlaps="plan_ids"
+    )
+    plan = relationship(
+        "Plan",
+        back_populates="puja_plans",
+        overlaps="plan_ids"
+    )
 
 
 class PujaChadawa(Base):

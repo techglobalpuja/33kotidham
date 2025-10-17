@@ -122,7 +122,7 @@ class PujaCRUD:
     
     @staticmethod
     def create_puja(db: Session, puja: schemas.PujaCreate) -> models.Puja:
-        db_puja = models.Puja(**puja.dict(exclude={"benefits"}))
+        db_puja = models.Puja(**puja.dict(exclude={"benefits", "plan_ids"}))
         db.add(db_puja)
         db.commit()
         db.refresh(db_puja)
@@ -137,6 +137,15 @@ class PujaCRUD:
                 )
                 PujaBenefitCRUD.create_puja_benefit(db, benefit_data)
 
+        # Add plans if provided
+        if puja.plan_ids:
+            for plan_id in puja.plan_ids:
+                plan = db.query(models.Plan).filter(models.Plan.id == plan_id).first()
+                if plan:
+                    db_puja.plan_ids.append(plan)
+
+        db.commit()
+        db.refresh(db_puja)
         return db_puja
     
     @staticmethod
@@ -155,31 +164,10 @@ class PujaCRUD:
     
     @staticmethod
     def delete_puja(db: Session, puja_id: int) -> bool:
-        db_puja = db.query(models.Puja).filter(models.Puja.id == puja_id).first()
-        if not db_puja:
-            return False
-        # Explicitly delete related PujaImage records and files as a safe fallback
-        try:
-            # Delete benefits associated with this puja (fallback if DB cascade not present)
-            puja_benefits = db.query(models.PujaBenefit).filter(models.PujaBenefit.puja_id == puja_id).all()
-            for b in puja_benefits:
-                db.delete(b)
-
-            # Delete associated images and remove files
-            puja_images = db.query(models.PujaImage).filter(models.PujaImage.puja_id == puja_id).all()
-            for img in puja_images:
-                try:
-                    FileManager.delete_image(img.image_url)
-                except Exception:
-                    pass
-                db.delete(img)
-
-            db.delete(db_puja)
-            db.commit()
-            return True
-        except Exception:
-            db.rollback()
-            raise
+        db.query(models.PujaPlan).filter(models.PujaPlan.puja_id == puja_id).delete(synchronize_session=False)
+        db.query(models.Puja).filter(models.Puja.id == puja_id).delete(synchronize_session=False)
+        db.commit()
+        return True
 
 
 # Plan CRUD operations
@@ -558,3 +546,31 @@ class BlogCRUD:
                 models.Blog.tags.ilike(f"%{search_term}%")
             )
         ).order_by(models.Blog.created_at.desc()).offset(skip).limit(limit).all()
+
+
+# PujaPlan CRUD operations
+class PujaPlanCRUD:
+    @staticmethod
+    def create_puja_plan(db: Session, puja_plan: schemas.PujaPlanCreate) -> models.PujaPlan:
+        db_puja_plan = models.PujaPlan(**puja_plan.dict())
+        db.add(db_puja_plan)
+        db.commit()
+        db.refresh(db_puja_plan)
+        return db_puja_plan
+
+    @staticmethod
+    def update_puja_plans(db: Session, puja_id: int, plan_ids: List[int]):
+        # Delete existing PujaPlan entries for the puja
+        db.query(models.PujaPlan).filter(models.PujaPlan.puja_id == puja_id).delete()
+        db.commit()
+
+        # Add new PujaPlan entries
+        for plan_id in plan_ids:
+            db_puja_plan = models.PujaPlan(puja_id=puja_id, plan_id=plan_id)
+            db.add(db_puja_plan)
+        db.commit()
+
+    @staticmethod
+    def delete_puja_plans(db: Session, puja_id: int):
+        db.query(models.PujaPlan).filter(models.PujaPlan.puja_id == puja_id).delete()
+        db.commit()
