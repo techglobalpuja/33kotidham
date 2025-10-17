@@ -121,15 +121,24 @@ def update_blog(
     current_user: User = Depends(get_admin_user)
 ):
     """Update blog (Admin only)."""
-    # Validate category IDs
-    categories = db.query(Category).filter(Category.id.in_(blog_update.category_ids)).all()
-    if len(categories) != len(blog_update.category_ids):
+    # Validate category IDs (allow empty list)
+    category_ids = blog_update.category_ids or []
+    categories = []
+    if category_ids:
+        categories = db.query(Category).filter(Category.id.in_(category_ids)).all()
+        if len(categories) != len(category_ids):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="One or more category IDs are invalid."
+            )
+
+    try:
+        blog = crud.BlogCRUD.update_blog(db, blog_id, blog_update, categories)
+    except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="One or more category IDs are invalid."
+            detail=str(e)
         )
-
-    blog = crud.BlogCRUD.update_blog(db, blog_id, blog_update, categories)
     if not blog:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

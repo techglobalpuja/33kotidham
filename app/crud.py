@@ -499,28 +499,22 @@ class BlogCRUD:
         return db_blog
     
     @staticmethod
-    def update_blog(db: Session, blog_id: int, blog_update: schemas.BlogUpdate) -> Optional[models.Blog]:
+    def update_blog(db: Session, blog_id: int, blog_update: schemas.BlogUpdate, categories: list) -> Optional[models.Blog]:
         db_blog = db.query(models.Blog).filter(models.Blog.id == blog_id).first()
         if not db_blog:
             return None
-        
-        update_data = blog_update.model_dump(exclude_unset=True)
-        
-        # Handle slug update
-        if 'title' in update_data and 'slug' not in update_data:
-            slug = update_data['title'].lower().replace(' ', '-').replace('_', '-')
-            import re
-            slug = re.sub(r'[^a-z0-9\-]', '', slug)
-            base_slug = slug
-            counter = 1
-            while db.query(models.Blog).filter(models.Blog.slug == slug, models.Blog.id != blog_id).first():
-                slug = f"{base_slug}-{counter}"
-                counter += 1
-            update_data['slug'] = slug
-        
+
+        # Slug uniqueness check
+        if blog_update.slug:
+            existing_blog = db.query(models.Blog).filter(models.Blog.slug == blog_update.slug, models.Blog.id != blog_id).first()
+            if existing_blog:
+                raise ValueError(f"Slug '{blog_update.slug}' already exists for another blog.")
+
+        update_data = blog_update.dict(exclude_unset=True)
         for field, value in update_data.items():
             setattr(db_blog, field, value)
-        
+        # Update categories
+        db_blog.categories = categories
         db.commit()
         db.refresh(db_blog)
         return db_blog
