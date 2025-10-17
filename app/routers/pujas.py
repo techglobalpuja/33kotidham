@@ -69,6 +69,8 @@ def update_puja(
     # Update plan_ids if provided
     if puja_update.plan_ids is not None:
         crud.PujaPlanCRUD.update_puja_plans(db, puja_id, puja_update.plan_ids)
+        # Re-fetch the puja so its relationships reflect the updated associations
+        puja = crud.PujaCRUD.get_puja(db, puja_id)
 
     return puja
 
