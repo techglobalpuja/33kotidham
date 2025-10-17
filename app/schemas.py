@@ -111,6 +111,7 @@ class PujaBase(BaseModel):
 class PujaCreate(PujaBase):
     benefits: Optional[List['PujaBenefitBase']] = None
     plan_ids: Optional[List[int]] = None
+    category: List[str] = []  # Update to accept a list of strings
 
 
 class PujaUpdate(BaseModel):

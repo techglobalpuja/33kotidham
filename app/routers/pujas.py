@@ -4,7 +4,8 @@ from typing import List
 from app.database import get_db
 from app import schemas, crud
 from app.auth import get_admin_user, get_current_active_user
-from app.models import User
+from app.models import User  # Import only User
+from app import models  # Import the entire models module
 
 router = APIRouter(prefix="/pujas", tags=["pujas"])
 
@@ -22,16 +23,15 @@ def get_pujas(
 @router.get("/{puja_id}", response_model=schemas.PujaResponse)
 def get_puja(puja_id: int, db: Session = Depends(get_db)):
     """Get puja by ID (Public endpoint)."""
-    puja = crud.PujaCRUD.get_puja(db, puja_id)
+    puja = db.query(models.Puja).filter(models.Puja.id == puja_id).first()
     if not puja:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Puja not found"
-        )
+        raise HTTPException(status_code=404, detail="Puja not found")
 
-    # Include plan_ids in the response
-    puja.plan_ids = [plan.plan_id for plan in puja.puja_plans]
-    return puja
+    # Populate plan_ids with the IDs of associated Plan objects
+    puja_response = schemas.PujaResponse.from_orm(puja)
+    puja_response.plan_ids = [plan.id for plan in puja.plan_ids]
+
+    return puja_response
 
 
 @router.post("/", response_model=schemas.PujaResponse)
