@@ -141,7 +141,8 @@ class PujaUpdate(BaseModel):
     is_manokamna_active: Optional[bool] = None
     
     # General
-    category: Optional[str] = None
+    category: List[str] = []  # Update to accept a list of strings
+    benefits: Optional[List['PujaBenefitBase']] = None
     plan_ids: Optional[List[int]] = None
 
 
@@ -374,17 +375,11 @@ class BlogBase(BaseModel):
     thumbnail_image: Optional[str] = None
     meta_description: Optional[str] = None
     tags: Optional[str] = None  # Comma-separated tags
-    category_id: Optional[int] = None
+    category_ids: List[int] = []  # Changed from single category_id to a list
     is_featured: bool = False
     is_active: bool = True
     publish_time: Optional[datetime] = None
     slug: Optional[str] = None
-    
-    @validator('category_id')
-    def validate_category_id(cls, v):
-        if v is not None and v <= 0:
-            return None  # Convert invalid category_id to None
-        return v
 
 
 class BlogCreate(BlogBase):
@@ -398,17 +393,11 @@ class BlogUpdate(BaseModel):
     thumbnail_image: Optional[str] = None
     meta_description: Optional[str] = None
     tags: Optional[str] = None
-    category_id: Optional[int] = None
+    category_ids: Optional[List[int]] = None
     is_featured: Optional[bool] = None
     is_active: Optional[bool] = None
     publish_time: Optional[datetime] = None
     slug: Optional[str] = None
-    
-    @validator('category_id')
-    def validate_category_id(cls, v):
-        if v is not None and v <= 0:
-            return None  # Convert invalid category_id to None
-        return v
 
 
 class BlogResponse(BlogBase, BaseResponse):
@@ -416,7 +405,7 @@ class BlogResponse(BlogBase, BaseResponse):
     author_id: int
     created_at: datetime
     updated_at: datetime
-    category: Optional[CategoryResponse] = None
+    categories: List[CategoryResponse] = []  # Updated to include a list of categories
     author: Optional[UserResponse] = None
 
 
@@ -427,7 +416,6 @@ class BlogListResponse(BaseResponse):
     thumbnail_image: Optional[str] = None
     meta_description: Optional[str] = None
     tags: Optional[str] = None
-    category_id: Optional[int] = None
     is_featured: bool
     is_active: bool
     publish_time: Optional[datetime] = None
@@ -435,4 +423,4 @@ class BlogListResponse(BaseResponse):
     author_id: int
     created_at: datetime
     updated_at: datetime
-    category: Optional[CategoryResponse] = None
+    categories: List[CategoryResponse] = []  # Add categories list to response

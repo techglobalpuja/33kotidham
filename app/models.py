@@ -287,6 +287,14 @@ class PujaBenefit(Base):
     puja = relationship("Puja", back_populates="benefits")
 
 
+# Association table for many-to-many relationship between blogs and categories
+blog_categories = Table(
+    "blog_categories",
+    Base.metadata,
+    Column("blog_id", Integer, ForeignKey("blogs.id", ondelete="CASCADE"), primary_key=True),
+    Column("category_id", Integer, ForeignKey("categories.id", ondelete="CASCADE"), primary_key=True)
+)
+
 class Category(Base):
     __tablename__ = "categories"
 
@@ -298,7 +306,11 @@ class Category(Base):
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     # Relationships
-    blogs = relationship("Blog", back_populates="category")
+    blogs = relationship(
+        "Blog",
+        secondary=blog_categories,
+        back_populates="categories"
+    )
 
 
 class Blog(Base):
@@ -311,15 +323,12 @@ class Blog(Base):
     thumbnail_image = Column(String(500), nullable=True)  # Featured/thumbnail image URL
     meta_description = Column(String(160), nullable=True)  # SEO meta description
     tags = Column(String(500), nullable=True)  # Comma-separated tags
-    category_id = Column(Integer, ForeignKey("categories.id"), nullable=True)
+    author_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     
     # Publishing settings
     is_featured = Column(Boolean, default=False)
     is_active = Column(Boolean, default=True)
     publish_time = Column(DateTime(timezone=True), nullable=True)  # Scheduled publish time
-    
-    # Author information
-    author_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     
     # SEO and URL
     slug = Column(String(255), nullable=True, unique=True)  # URL-friendly version of title
@@ -330,4 +339,8 @@ class Blog(Base):
 
     # Relationships
     author = relationship("User")
-    category = relationship("Category", back_populates="blogs")
+    categories = relationship(
+        "Category",
+        secondary=blog_categories,
+        back_populates="blogs"
+    )

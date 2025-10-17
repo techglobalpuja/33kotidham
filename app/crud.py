@@ -1,4 +1,4 @@
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import and_, or_
 from typing import List, Optional
 from datetime import datetime, timedelta
@@ -426,7 +426,7 @@ class CategoryCRUD:
 class BlogCRUD:
     @staticmethod
     def get_blog(db: Session, blog_id: int) -> Optional[models.Blog]:
-        return db.query(models.Blog).filter(
+        return db.query(models.Blog).options(joinedload(models.Blog.categories)).filter(
             models.Blog.id == blog_id,
             models.Blog.is_active == True
         ).first()
@@ -441,7 +441,7 @@ class BlogCRUD:
     @staticmethod
     def get_blogs(db: Session, skip: int = 0, limit: int = 100, featured_only: bool = False, 
                   category_id: Optional[int] = None, published_only: bool = True) -> List[models.Blog]:
-        query = db.query(models.Blog).filter(models.Blog.is_active == True)
+        query = db.query(models.Blog).options(joinedload(models.Blog.categories)).filter(models.Blog.is_active == True)
         
         if published_only:
             query = query.filter(or_(
@@ -463,32 +463,37 @@ class BlogCRUD:
         return db.query(models.Blog).order_by(models.Blog.created_at.desc()).offset(skip).limit(limit).all()
     
     @staticmethod
-    def create_blog(db: Session, blog: schemas.BlogCreate, author_id: int) -> models.Blog:
-        # Validate category exists if provided
-        if blog.category_id is not None:
-            category = db.query(models.Category).filter(models.Category.id == blog.category_id).first()
-            if not category:
-                raise ValueError(f"Category with id {blog.category_id} does not exist")
-        
+    def create_blog(db: Session, blog: schemas.BlogCreate, author_id: int, categories: List[models.Category]) -> models.Blog:
         # Generate slug from title if not provided
         slug = blog.slug
         if not slug:
             slug = blog.title.lower().replace(' ', '-').replace('_', '-')
-            # Remove special characters and ensure uniqueness
+            # Remove special characters
             import re
             slug = re.sub(r'[^a-z0-9\-]', '', slug)
-            base_slug = slug
-            counter = 1
-            while db.query(models.Blog).filter(models.Blog.slug == slug).first():
-                slug = f"{base_slug}-{counter}"
-                counter += 1
-        
+
+        # Ensure slug is unique
+        base_slug = slug
+        counter = 1
+        while db.query(models.Blog).filter(models.Blog.slug == slug).first():
+            slug = f"{base_slug}-{counter}"
+            counter += 1
+
         blog_data = blog.model_dump()
         blog_data['slug'] = slug
         blog_data['author_id'] = author_id
-        
+
+        # Remove category_ids from blog_data as it's not a valid Blog model attribute
+        blog_data.pop('category_ids', None)
+
         db_blog = models.Blog(**blog_data)
         db.add(db_blog)
+        db.commit()
+
+        # Associate categories with the blog
+        # Deduplicate categories based on their IDs
+        unique_categories = {category.id: category for category in categories}.values()
+        db_blog.categories = list(unique_categories)
         db.commit()
         db.refresh(db_blog)
         return db_blog

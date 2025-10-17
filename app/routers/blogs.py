@@ -4,7 +4,7 @@ from typing import List, Optional
 from app.database import get_db
 from app import schemas, crud
 from app.auth import get_admin_user, get_current_active_user
-from app.models import User
+from app.models import User, Category
 
 router = APIRouter(prefix="/blogs", tags=["blogs"])
 
@@ -97,7 +97,15 @@ def create_blog(
 ):
     """Create a new blog (Admin only)."""
     try:
-        return crud.BlogCRUD.create_blog(db, blog, current_user.id)
+        # Validate category IDs
+        categories = db.query(Category).filter(Category.id.in_(blog.category_ids)).all()
+        if len(categories) != len(blog.category_ids):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="One or more category IDs are invalid."
+            )
+
+        return crud.BlogCRUD.create_blog(db, blog, current_user.id, categories)
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -113,7 +121,15 @@ def update_blog(
     current_user: User = Depends(get_admin_user)
 ):
     """Update blog (Admin only)."""
-    blog = crud.BlogCRUD.update_blog(db, blog_id, blog_update)
+    # Validate category IDs
+    categories = db.query(Category).filter(Category.id.in_(blog_update.category_ids)).all()
+    if len(categories) != len(blog_update.category_ids):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="One or more category IDs are invalid."
+        )
+
+    blog = crud.BlogCRUD.update_blog(db, blog_id, blog_update, categories)
     if not blog:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
