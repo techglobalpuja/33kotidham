@@ -108,7 +108,7 @@ class PujaBase(BaseModel):
 
 
 class PujaCreate(PujaBase):
-    pass
+    benefits: Optional[List['PujaBenefitBase']] = None
 
 
 class PujaUpdate(BaseModel):

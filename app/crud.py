@@ -122,10 +122,21 @@ class PujaCRUD:
     
     @staticmethod
     def create_puja(db: Session, puja: schemas.PujaCreate) -> models.Puja:
-        db_puja = models.Puja(**puja.dict())
+        db_puja = models.Puja(**puja.dict(exclude={"benefits"}))
         db.add(db_puja)
         db.commit()
         db.refresh(db_puja)
+
+        # Add benefits if provided
+        if puja.benefits:
+            for benefit in puja.benefits:
+                benefit_data = schemas.PujaBenefitCreate(
+                    puja_id=db_puja.id,
+                    benefit_title=benefit.benefit_title,
+                    benefit_description=benefit.benefit_description
+                )
+                PujaBenefitCRUD.create_puja_benefit(db, benefit_data)
+
         return db_puja
     
     @staticmethod
