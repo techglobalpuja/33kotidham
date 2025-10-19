@@ -185,3 +185,15 @@ logs/
 *env*
 add_images_to_puja.py
 add_images_to_puja.py
+blogs_transformed_Devi_Stotra.jsonl
+blogs_transformed_Durga-Stotra.jsonl
+blogs_transformed_Festival.jsonl
+.gitignore
+blogs_transformed_Ganesha Stotra.jsonl
+blogs_transformed_puja.jsonl
+blogs_transformed.jsonl
+blogs_transformed_Krishna Stotra.jsonl
+test_blog.jsonl
+upload_blog.py
+blogs_transformed_Kalika Stotra.jsonl
+test_blog_clean.py
