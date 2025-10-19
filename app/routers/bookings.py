@@ -1,11 +1,12 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
-from typing import List, Optional
+from typing import List, Optional, Any, Dict
 from app.database import get_db
 from app import schemas, crud
 from app.auth import get_current_active_user, get_admin_user
 from app.models import User, BookingStatus
 from app.services import create_razorpay_order
+from app.services import calculate_booking_amount, verify_razorpay_signature
 
 router = APIRouter(prefix="/bookings", tags=["bookings"])
 
@@ -83,21 +84,25 @@ def create_booking(
                 detail="Plan not found"
             )
     
-    # Validate chadawas exist
-    for chadawa_data in booking.chadawas:
-        chadawa = crud.ChadawaCRUD.get_chadawa(db, chadawa_data.chadawa_id)
+    # Validate chadawas exist (support chadawa_ids shorthand)
+    chadawa_ids = booking.chadawa_ids if getattr(booking, 'chadawa_ids', None) else [c.chadawa_id for c in booking.chadawas]
+    for ch_id in chadawa_ids:
+        chadawa = crud.ChadawaCRUD.get_chadawa(db, ch_id)
         if not chadawa:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Chadawa with ID {chadawa_data.chadawa_id} not found"
+                detail=f"Chadawa with ID {ch_id} not found"
             )
-        
-        # Check if note is required
-        if chadawa.requires_note and not chadawa_data.note:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Note is required for chadawa: {chadawa.name}"
-            )
+        # If the chadawa requires a note and the client passed objects, validate note
+        if chadawa.requires_note and getattr(booking, 'chadawa_ids', None) is None:
+            # client used detailed objects
+            # find the object
+            obj = next((c for c in booking.chadawas if c.chadawa_id == ch_id), None)
+            if obj is None or not obj.note:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Note is required for chadawa: {chadawa.name}"
+                )
     
     return crud.BookingCRUD.create_booking(db, booking, current_user.id)
 
@@ -218,7 +223,7 @@ def complete_booking(
     return {"message": "Booking completed successfully"}
 
 
-@router.post("/razorpay-booking", response_model=schemas.BookingResponse)
+@router.post("/razorpay-booking", response_model=schemas.RazorpayBookingResponse)
 def create_booking_with_razorpay(
     booking: schemas.BookingCreate,
     db: Session = Depends(get_db),
@@ -254,21 +259,55 @@ def create_booking_with_razorpay(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Note is required for chadawa: {chadawa.name}"
             )
+    # Persist booking first (status PENDING), then calculate authoritative amount server-side
     db_booking = crud.BookingCRUD.create_booking(db, booking, current_user.id)
-    # Calculate total amount
-    amount = 0
-    if booking.plan_id:
-        amount += float(plan.actual_price)
-    for chadawa_data in booking.chadawas:
-        chadawa = crud.ChadawaCRUD.get_chadawa(db, chadawa_data.chadawa_id)
-        amount += float(chadawa.price)
+    amount = calculate_booking_amount(db, booking)
     # Create Razorpay order
-    razorpay_order = create_razorpay_order(amount, db_booking.id)
+    razorpay_order = create_razorpay_order(float(amount), db_booking.id)
     payment = schemas.PaymentCreate(booking_id=db_booking.id, amount=amount)
     db_payment = crud.PaymentCRUD.create_payment(db, payment, razorpay_order["id"])
     # Return booking and Razorpay order info
-    return {
-        "booking": db_booking,
-        "razorpay_order_id": razorpay_order["id"],
-        "razorpay_order": razorpay_order
-    }
+    # Build a proper response object so Pydantic can serialize the booking ORM object
+    response = schemas.RazorpayBookingResponse(
+        booking=schemas.BookingResponse.from_orm(db_booking),
+        razorpay_order_id=razorpay_order["id"],
+        razorpay_order=razorpay_order,
+    )
+    return response
+
+
+@router.post('/verify-payment')
+def verify_payment(
+    booking_id: int,
+    razorpay_order_id: str,
+    razorpay_payment_id: str,
+    razorpay_signature: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """Verify razorpay payment signature and update payment record."""
+    # Verify ownership
+    booking = crud.BookingCRUD.get_booking(db, booking_id)
+    if not booking or booking.user_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Booking not found")
+
+    valid = verify_razorpay_signature(razorpay_order_id, razorpay_payment_id, razorpay_signature)
+    if not valid:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid payment signature")
+
+    # Update payment record
+    payment = crud.PaymentCRUD.get_payment_by_booking(db, booking_id)
+    if not payment:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Payment record not found")
+
+    payment.razorpay_payment_id = razorpay_payment_id
+    payment.razorpay_signature = razorpay_signature
+    payment.status = 'success'
+    db.commit()
+    db.refresh(payment)
+
+    # Update booking status if needed
+    booking_update = schemas.BookingUpdate(status=BookingStatus.CONFIRMED)
+    crud.BookingCRUD.update_booking(db, booking_id, booking_update)
+
+    return {"message": "Payment verified and booking confirmed", "payment_id": payment.id}

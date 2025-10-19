@@ -1,5 +1,6 @@
 from pydantic import BaseModel, EmailStr, validator
 from typing import Optional, List
+from typing import Optional, List, Any, Dict
 from datetime import datetime
 import datetime as dt
 from decimal import Decimal
@@ -252,10 +253,15 @@ class BookingBase(BaseModel):
     puja_id: Optional[int] = None
     plan_id: Optional[int] = None
     booking_date: Optional[datetime] = None
+    # personal details
+    mobile_number: Optional[str] = None
+    whatsapp_number: Optional[str] = None
+    gotra: Optional[str] = None
 
 
 class BookingCreate(BookingBase):
     chadawas: List[BookingChadawaCreate] = []
+    chadawa_ids: Optional[List[int]] = None
 
 
 class BookingUpdate(BaseModel):
@@ -273,6 +279,15 @@ class BookingResponse(BookingBase, BaseResponse):
     puja: Optional[PujaResponse] = None
     plan: Optional[PlanResponse] = None
     booking_chadawas: List[BookingChadawaResponse] = []
+
+
+class RazorpayBookingResponse(BaseModel):
+    booking: BookingResponse
+    razorpay_order_id: str
+    razorpay_order: Dict[str, Any]
+
+    class Config:
+        from_attributes = True
 
 
 # Payment schemas

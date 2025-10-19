@@ -6,6 +6,11 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 import razorpay
 from app.config import settings
+from decimal import Decimal
+from typing import List
+from pydantic import BaseModel
+from razorpay.errors import SignatureVerificationError
+from app import models
 
 class SMSService:
     """SMS service supporting both Twilio and MSG91."""
@@ -175,6 +180,46 @@ def create_razorpay_order(amount, receipt_id):
         "payment_capture": 1
     })
     return order
+
+
+def calculate_booking_amount(db, booking) -> Decimal:
+    """Calculate total amount for a BookingCreate object using authoritative DB prices.
+
+    - plan actual_price (if plan_id provided)
+    - sum of selected chadawa prices
+    Returns Decimal total amount (INR)
+    """
+    total = Decimal('0')
+    # Plan
+    if getattr(booking, 'plan_id', None):
+        plan = db.query(models.Plan).filter(models.Plan.id == booking.plan_id).first()
+        if plan and getattr(plan, 'actual_price', None) is not None:
+            total += Decimal(plan.actual_price)
+
+    # Chadawas
+    for ch in getattr(booking, 'chadawas', []) or []:
+        ch_obj = db.query(models.Chadawa).filter(models.Chadawa.id == ch.chadawa_id).first()
+        if ch_obj and getattr(ch_obj, 'price', None) is not None:
+            total += Decimal(ch_obj.price)
+
+    return total
+
+
+def verify_razorpay_signature(order_id: str, payment_id: str, signature: str) -> bool:
+    """Verify a Razorpay payment signature using the Razorpay SDK. Returns True if valid."""
+    client = razorpay.Client(auth=(settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET))
+    try:
+        client.utility.verify_payment_signature({
+            'razorpay_order_id': order_id,
+            'razorpay_payment_id': payment_id,
+            'razorpay_signature': signature
+        })
+        return True
+    except SignatureVerificationError:
+        return False
+    except Exception:
+        # Any unexpected exception should be treated as verification failure at this layer
+        return False
 
 class EmailService:
     """Email service for sending notifications."""

@@ -198,6 +198,10 @@ class Booking(Base):
     puja_id = Column(Integer, ForeignKey("pujas.id"), nullable=True)
     plan_id = Column(Integer, ForeignKey("plans.id"), nullable=True)
     booking_date = Column(DateTime(timezone=True), server_default=func.now())
+    # Personal details supplied at booking time
+    mobile_number = Column(String(30), nullable=True)
+    whatsapp_number = Column(String(30), nullable=True)
+    gotra = Column(String(100), nullable=True)
     status = Column(String(20), default=BookingStatus.PENDING.value, nullable=False)
     puja_link = Column(Text, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())

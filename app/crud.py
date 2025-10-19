@@ -231,6 +231,10 @@ class PujaCRUD:
     
     @staticmethod
     def delete_puja(db: Session, puja_id: int) -> bool:
+        # If there are bookings referencing this puja, nullify the puja_id on those bookings
+        # to avoid foreign key constraint violations while preserving booking records.
+        db.query(models.Booking).filter(models.Booking.puja_id == puja_id).update({"puja_id": None}, synchronize_session=False)
+
         # Remove association rows that have no ON DELETE CASCADE at DB level
         # Delete PujaPlan association rows
         db.query(models.PujaPlan).filter(models.PujaPlan.puja_id == puja_id).delete(synchronize_session=False)
@@ -347,19 +351,32 @@ class BookingCRUD:
             user_id=user_id,
             puja_id=booking.puja_id,
             plan_id=booking.plan_id,
-            booking_date=booking.booking_date or datetime.utcnow()
+            booking_date=booking.booking_date or datetime.utcnow(),
+            mobile_number=getattr(booking, 'mobile_number', None),
+            whatsapp_number=getattr(booking, 'whatsapp_number', None),
+            gotra=getattr(booking, 'gotra', None),
         )
         db.add(db_booking)
         db.flush()  # Get the booking ID
         
-        # Add chadawas
-        for chadawa_data in booking.chadawas:
-            db_booking_chadawa = models.BookingChadawa(
-                booking_id=db_booking.id,
-                chadawa_id=chadawa_data.chadawa_id,
-                note=chadawa_data.note
-            )
-            db.add(db_booking_chadawa)
+        # Add chadawas provided either as objects or as IDs
+        # If client sends plain chadawa_ids: [1,2], convert to BookingChadawa entries
+        if getattr(booking, 'chadawa_ids', None):
+            for ch_id in booking.chadawa_ids:
+                db_booking_chadawa = models.BookingChadawa(
+                    booking_id=db_booking.id,
+                    chadawa_id=ch_id,
+                    note=None
+                )
+                db.add(db_booking_chadawa)
+        else:
+            for chadawa_data in booking.chadawas:
+                db_booking_chadawa = models.BookingChadawa(
+                    booking_id=db_booking.id,
+                    chadawa_id=chadawa_data.chadawa_id,
+                    note=chadawa_data.note
+                )
+                db.add(db_booking_chadawa)
         
         db.commit()
         db.refresh(db_booking)
