@@ -182,7 +182,10 @@ def create_category(
     current_user: User = Depends(get_admin_user)
 ):
     """Create a new category (Admin only)."""
-    return crud.CategoryCRUD.create_category(db, category)
+    try:
+        return crud.CategoryCRUD.create_category(db, category)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
 @router.put("/categories/{category_id}", response_model=schemas.CategoryResponse)

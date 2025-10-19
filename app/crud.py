@@ -432,6 +432,11 @@ class CategoryCRUD:
     
     @staticmethod
     def create_category(db: Session, category: schemas.CategoryCreate) -> models.Category:
+        # Ensure category name is unique (case-insensitive)
+        existing = db.query(models.Category).filter(models.Category.name == category.name).first()
+        if existing:
+            raise ValueError(f"Category '{category.name}' already exists.")
+
         db_category = models.Category(**category.model_dump())
         db.add(db_category)
         db.commit()
