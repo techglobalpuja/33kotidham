@@ -111,6 +111,7 @@ class PujaBase(BaseModel):
 class PujaCreate(PujaBase):
     benefits: Optional[List['PujaBenefitBase']] = None
     plan_ids: Optional[List[int]] = None
+    chadawa_ids: Optional[List[int]] = None
     category: List[str] = []  # Update to accept a list of strings
 
 
@@ -144,6 +145,7 @@ class PujaUpdate(BaseModel):
     category: List[str] = []  # Update to accept a list of strings
     benefits: Optional[List['PujaBenefitBase']] = None
     plan_ids: Optional[List[int]] = None
+    chadawa_ids: Optional[List[int]] = None
 
 
 class PujaImageResponse(BaseResponse):
@@ -173,6 +175,7 @@ class PujaResponse(PujaBase, BaseResponse):
     benefits: Optional[List[PujaBenefitResponse]] = []
     images: List[PujaImageResponse] = []
     plan_ids: List[int] = []
+    chadawas: List['ChadawaResponse'] = []
 
     @validator("plan_ids", pre=True, each_item=False)
     def extract_plan_ids(cls, value):

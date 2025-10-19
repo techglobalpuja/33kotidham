@@ -114,7 +114,10 @@ class OTPCRUD:
 class PujaCRUD:
     @staticmethod
     def get_puja(db: Session, puja_id: int) -> Optional[models.Puja]:
-        return db.query(models.Puja).filter(models.Puja.id == puja_id).first()
+        return db.query(models.Puja).options(
+            joinedload(models.Puja.puja_chadawas).joinedload(models.PujaChadawa.chadawa),
+            joinedload(models.Puja.plan_ids)
+        ).filter(models.Puja.id == puja_id).first()
     
     @staticmethod
     def get_pujas(db: Session, skip: int = 0, limit: int = 100) -> List[models.Puja]:
@@ -122,7 +125,8 @@ class PujaCRUD:
     
     @staticmethod
     def create_puja(db: Session, puja: schemas.PujaCreate) -> models.Puja:
-        db_puja = models.Puja(**puja.dict(exclude={"benefits", "plan_ids"}))
+        # exclude non-model fields (benefits, plan_ids, chadawa_ids) when constructing the ORM model
+        db_puja = models.Puja(**puja.dict(exclude={"benefits", "plan_ids", "chadawa_ids"}))
         db.add(db_puja)
         db.commit()
         db.refresh(db_puja)
@@ -143,6 +147,15 @@ class PujaCRUD:
                 plan = db.query(models.Plan).filter(models.Plan.id == plan_id).first()
                 if plan:
                     db_puja.plan_ids.append(plan)
+
+        # Add chadawas if provided
+        if getattr(puja, 'chadawa_ids', None):
+            for ch_id in puja.chadawa_ids:
+                ch = db.query(models.Chadawa).filter(models.Chadawa.id == ch_id).first()
+                if ch:
+                    # attach association object to the parent so ORM knows about the relationship
+                    db_pc = models.PujaChadawa(chadawa=ch)
+                    db_puja.puja_chadawas.append(db_pc)
 
         db.commit()
         db.refresh(db_puja)
@@ -195,6 +208,19 @@ class PujaCRUD:
             else:
                 db_puja.category = category_value
 
+        # Handle chadawa_ids - replace existing PujaChadawa associations
+        if 'chadawa_ids' in update_data:
+            chadawa_ids = update_data.pop('chadawa_ids') or []
+            # delete existing association rows safely
+            db.query(models.PujaChadawa).filter(models.PujaChadawa.puja_id == puja_id).delete(synchronize_session=False)
+            db.flush()
+            # add new associations
+            for ch_id in chadawa_ids:
+                ch = db.query(models.Chadawa).filter(models.Chadawa.id == ch_id).first()
+                if ch:
+                    db_pc = models.PujaChadawa(chadawa=ch)
+                    db_puja.puja_chadawas.append(db_pc)
+
         # Set remaining simple fields
         for field, value in update_data.items():
             setattr(db_puja, field, value)
@@ -205,7 +231,12 @@ class PujaCRUD:
     
     @staticmethod
     def delete_puja(db: Session, puja_id: int) -> bool:
+        # Remove association rows that have no ON DELETE CASCADE at DB level
+        # Delete PujaPlan association rows
         db.query(models.PujaPlan).filter(models.PujaPlan.puja_id == puja_id).delete(synchronize_session=False)
+        # Delete PujaChadawa association rows to avoid FK constraint when deleting the Puja
+        db.query(models.PujaChadawa).filter(models.PujaChadawa.puja_id == puja_id).delete(synchronize_session=False)
+        # Finally delete the Puja itself
         db.query(models.Puja).filter(models.Puja.id == puja_id).delete(synchronize_session=False)
         db.commit()
         return True

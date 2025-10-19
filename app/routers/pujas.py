@@ -30,6 +30,8 @@ def get_puja(puja_id: int, db: Session = Depends(get_db)):
     # Populate plan_ids with the IDs of associated Plan objects
     puja_response = schemas.PujaResponse.from_orm(puja)
     puja_response.plan_ids = [plan.id for plan in puja.plan_ids]
+    # Populate chadawas from association objects
+    puja_response.chadawas = [schemas.ChadawaResponse.from_orm(pc.chadawa) for pc in puja.puja_chadawas]
 
     return puja_response
 
@@ -45,16 +47,29 @@ def create_puja(
     if isinstance(puja.category, str):
         puja.category = [c.strip() for c in puja.category.split(',') if c.strip()]
 
+    # Validate chadawa_ids if provided
+    if getattr(puja, 'chadawa_ids', None):
+        chadawas = db.query(models.Chadawa).filter(models.Chadawa.id.in_(puja.chadawa_ids)).all()
+        if len(chadawas) != len(set(puja.chadawa_ids)):
+            existing_ids = {c.id for c in chadawas}
+            missing = [str(i) for i in puja.chadawa_ids if i not in existing_ids]
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Invalid chadawa_ids: {', '.join(missing)}")
+
     created_puja = crud.PujaCRUD.create_puja(db, puja)
 
     # Associate plan_ids if provided
     if puja.plan_ids:
         for plan_id in puja.plan_ids:
             crud.PujaPlanCRUD.create_puja_plan(db, schemas.PujaPlanCreate(puja_id=created_puja.id, plan_id=plan_id))
-        # Re-fetch the puja to include the updated plan associations in the response
-        created_puja = crud.PujaCRUD.get_puja(db, created_puja.id)
+    # Re-fetch the puja to include the updated plan and chadawa associations in the response
+    created_puja = crud.PujaCRUD.get_puja(db, created_puja.id)
 
-    return created_puja
+    # Build response model so nested chadawas list is populated correctly
+    puja_response = schemas.PujaResponse.from_orm(created_puja)
+    puja_response.plan_ids = [plan.id for plan in created_puja.plan_ids]
+    puja_response.chadawas = [schemas.ChadawaResponse.from_orm(pc.chadawa) for pc in created_puja.puja_chadawas]
+
+    return puja_response
 
 
 @router.put("/{puja_id}", response_model=schemas.PujaResponse)
@@ -82,7 +97,12 @@ def update_puja(
         # Re-fetch the puja so its relationships reflect the updated associations
         puja = crud.PujaCRUD.get_puja(db, puja_id)
 
-    return puja
+    # Return a response model to populate nested chadawas and plan_ids
+    puja_response = schemas.PujaResponse.from_orm(puja)
+    puja_response.plan_ids = [plan.id for plan in puja.plan_ids]
+    puja_response.chadawas = [schemas.ChadawaResponse.from_orm(pc.chadawa) for pc in puja.puja_chadawas]
+
+    return puja_response
 
 
 @router.delete("/{puja_id}")
