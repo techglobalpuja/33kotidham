@@ -41,12 +41,18 @@ def create_puja(
     current_user: User = Depends(get_admin_user)
 ):
     """Create a new puja (Admin only)."""
+    # Coerce category if client sent a comma-separated string
+    if isinstance(puja.category, str):
+        puja.category = [c.strip() for c in puja.category.split(',') if c.strip()]
+
     created_puja = crud.PujaCRUD.create_puja(db, puja)
 
     # Associate plan_ids if provided
     if puja.plan_ids:
         for plan_id in puja.plan_ids:
             crud.PujaPlanCRUD.create_puja_plan(db, schemas.PujaPlanCreate(puja_id=created_puja.id, plan_id=plan_id))
+        # Re-fetch the puja to include the updated plan associations in the response
+        created_puja = crud.PujaCRUD.get_puja(db, created_puja.id)
 
     return created_puja
 
@@ -59,6 +65,10 @@ def update_puja(
     current_user: User = Depends(get_admin_user)
 ):
     """Update puja (Admin only)."""
+    # allow comma-separated category input
+    if hasattr(puja_update, 'category') and isinstance(puja_update.category, str):
+        puja_update.category = [c.strip() for c in puja_update.category.split(',') if c.strip()]
+
     puja = crud.PujaCRUD.update_puja(db, puja_id, puja_update)
     if not puja:
         raise HTTPException(
