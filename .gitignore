@@ -198,3 +198,5 @@ upload_blog.py
 blogs_transformed_Kalika Stotra.jsonl
 test_blog_clean.py
 test_payment_succes.py
+upload_to_wordpree.py
+upload image_to_wordpress.py
