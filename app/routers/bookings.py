@@ -230,38 +230,60 @@ def create_booking_with_razorpay(
     current_user: User = Depends(get_current_active_user)
 ):
     """Create a new booking and Razorpay order."""
-    # Validate puja exists
-    if booking.puja_id:
+    # Normalize puja_id/plan_id: treat 0 or falsy integers as None (client may send 0)
+    if getattr(booking, 'puja_id', None) in (0, ''):
+        booking.puja_id = None
+    if getattr(booking, 'plan_id', None) in (0, ''):
+        booking.plan_id = None
+
+    # Validate puja exists (if provided)
+    if getattr(booking, 'puja_id', None):
         puja = crud.PujaCRUD.get_puja(db, booking.puja_id)
         if not puja:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Puja not found"
             )
-    # Validate plan exists
-    if booking.plan_id:
+
+    # Validate plan exists (if provided)
+    if getattr(booking, 'plan_id', None):
         plan = crud.PlanCRUD.get_plan(db, booking.plan_id)
         if not plan:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Plan not found"
             )
-    # Validate chadawas exist
-    for chadawa_data in booking.chadawas:
-        chadawa = crud.ChadawaCRUD.get_chadawa(db, chadawa_data.chadawa_id)
+
+    # Validate chadawas exist. Support both detailed objects (booking.chadawas)
+    # and shorthand id list (booking.chadawa_ids).
+    chadawa_ids = None
+    if getattr(booking, 'chadawa_ids', None):
+        chadawa_ids = booking.chadawa_ids
+    else:
+        chadawa_ids = [getattr(c, 'chadawa_id', None) for c in getattr(booking, 'chadawas', [])]
+
+    for ch_id in chadawa_ids:
+        # skip None
+        if ch_id is None:
+            continue
+        chadawa = crud.ChadawaCRUD.get_chadawa(db, ch_id)
         if not chadawa:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Chadawa with ID {chadawa_data.chadawa_id} not found"
+                detail=f"Chadawa with ID {ch_id} not found"
             )
-        if chadawa.requires_note and not chadawa_data.note:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Note is required for chadawa: {chadawa.name}"
-            )
+        # If the chadawa requires a note and client passed detailed objects, validate note
+        if chadawa.requires_note and getattr(booking, 'chadawa_ids', None) is None:
+            obj = next((c for c in getattr(booking, 'chadawas', []) if getattr(c, 'chadawa_id', None) == ch_id), None)
+            if obj is None or not getattr(obj, 'note', None):
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Note is required for chadawa: {chadawa.name}"
+                )
     # Persist booking first (status PENDING), then calculate authoritative amount server-side
     db_booking = crud.BookingCRUD.create_booking(db, booking, current_user.id)
-    amount = calculate_booking_amount(db, booking)
+    # Calculate authoritative amount server-side using the persisted booking (safer)
+    amount = calculate_booking_amount(db, db_booking)
     # Create Razorpay order
     razorpay_order = create_razorpay_order(float(amount), db_booking.id)
     payment = schemas.PaymentCreate(booking_id=db_booking.id, amount=amount)

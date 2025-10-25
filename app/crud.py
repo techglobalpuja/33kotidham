@@ -347,10 +347,14 @@ class BookingCRUD:
     
     @staticmethod
     def create_booking(db: Session, booking: schemas.BookingCreate, user_id: int) -> models.Booking:
+        # Defensive normalization: treat falsy or non-positive IDs as None to avoid FK errors
+        puja_id = booking.puja_id if getattr(booking, 'puja_id', None) and int(getattr(booking, 'puja_id', 0)) > 0 else None
+        plan_id = booking.plan_id if getattr(booking, 'plan_id', None) and int(getattr(booking, 'plan_id', 0)) > 0 else None
+
         db_booking = models.Booking(
             user_id=user_id,
-            puja_id=booking.puja_id,
-            plan_id=booking.plan_id,
+            puja_id=puja_id,
+            plan_id=plan_id,
             booking_date=booking.booking_date or datetime.utcnow(),
             mobile_number=getattr(booking, 'mobile_number', None),
             whatsapp_number=getattr(booking, 'whatsapp_number', None),
