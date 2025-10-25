@@ -183,54 +183,60 @@ def create_razorpay_order(amount, receipt_id):
 
 
 def calculate_booking_amount(db, booking) -> Decimal:
-    """Calculate total amount for a BookingCreate object using authoritative DB prices.
+    """Calculate total amount for a Booking (persisted or incoming) using authoritative DB prices.
 
-    - plan actual_price (if plan_id provided)
-    - sum of selected chadawa prices
+    Only includes:
+    - plan.actual_price (if plan_id provided)
+    - sum of selected chadawa prices (from booking_chadawas, chadawa_ids, or chadawas)
+
     Returns Decimal total amount (INR)
     """
     total = Decimal('0')
 
-    # Plan: support both BookingCreate-like objects and persisted Booking ORM objects
+    # Plan price: prefer discounted_price when present, otherwise actual_price
     plan_id = getattr(booking, 'plan_id', None)
     if plan_id:
         plan = db.query(models.Plan).filter(models.Plan.id == plan_id).first()
-        if plan and getattr(plan, 'actual_price', None) is not None:
-            total += Decimal(plan.actual_price)
+        if plan:
+            price = None
+            if getattr(plan, 'discounted_price', None) is not None and str(getattr(plan, 'discounted_price')).strip() != "":
+                price = getattr(plan, 'discounted_price')
+            elif getattr(plan, 'actual_price', None) is not None:
+                price = getattr(plan, 'actual_price')
 
-    # Chadawas: handle multiple input shapes
-    # 1) Persisted Booking ORM will have booking.booking_chadawas relationship
-    # 2) BookingCreate may include chadawa_ids (list of ints)
-    # 3) BookingCreate may include chadawas (list of objects with chadawa_id)
+            if price is not None:
+                try:
+                    total += Decimal(str(price))
+                except Exception:
+                    pass
+
+    # Collect chadawa ids from multiple possible shapes (persisted booking or request shapes)
     chadawa_ids = []
-
-    # Case 1: persisted booking with booking_chadawas
     if hasattr(booking, 'booking_chadawas') and booking.booking_chadawas is not None:
         for bc in booking.booking_chadawas:
-            # bc may be BookingChadawa ORM or a dict-like object
             cid = getattr(bc, 'chadawa_id', None) or (bc.get('chadawa_id') if isinstance(bc, dict) else None)
             if cid:
                 chadawa_ids.append(cid)
 
-    # Case 2: shorthand list of ids
     if not chadawa_ids and getattr(booking, 'chadawa_ids', None):
         chadawa_ids = list(getattr(booking, 'chadawa_ids') or [])
 
-    # Case 3: detailed objects passed in request
     if not chadawa_ids and getattr(booking, 'chadawas', None):
         for c in getattr(booking, 'chadawas') or []:
             cid = getattr(c, 'chadawa_id', None) or (c.get('chadawa_id') if isinstance(c, dict) else None)
             if cid:
                 chadawa_ids.append(cid)
 
-    # Sum prices for discovered chadawa ids
     for cid in chadawa_ids:
         try:
             ch_obj = db.query(models.Chadawa).filter(models.Chadawa.id == cid).first()
         except Exception:
             ch_obj = None
         if ch_obj and getattr(ch_obj, 'price', None) is not None:
-            total += Decimal(ch_obj.price)
+            try:
+                total += Decimal(str(ch_obj.price))
+            except Exception:
+                pass
 
     return total
 
