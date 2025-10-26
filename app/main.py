@@ -7,6 +7,7 @@ from app.database import engine
 from app.models import Base
 from app.config import settings
 from app.routers import auth, users, pujas, plans, chadawas, bookings, payments, admin, uploads, blogs
+from app.routers import temples
 
 
 @asynccontextmanager
@@ -55,6 +56,7 @@ app.include_router(payments.router, prefix="/api/v1")
 app.include_router(admin.router, prefix="/api/v1")
 app.include_router(uploads.router, prefix="/api/v1")
 app.include_router(blogs.router, prefix="/api/v1")
+app.include_router(temples.router, prefix="/api/v1")
 
 
 @app.get("/")

@@ -134,6 +134,13 @@ class Puja(Base):
         back_populates="pujas",
         overlaps="puja_plans"
     )
+    # temples that recommend this puja (many-to-many)
+    temples = relationship(
+        "temple",
+        secondary="temple_recommended_pujas",
+        back_populates="recommended_pujas",
+        overlaps="puja_chadawas,puja_plans",
+    )
 
 
 class PujaImage(Base):
@@ -188,6 +195,12 @@ class Chadawa(Base):
     
     # Association object relationships
     puja_chadawas = relationship("PujaChadawa", back_populates="chadawa")
+    # temples that offer this chadawa
+    temples = relationship(
+        "temple",
+        secondary="temple_chadawas",
+        back_populates="chadawas"
+    )
 
 
 class Booking(Base):
@@ -299,6 +312,22 @@ blog_categories = Table(
     Column("category_id", Integer, ForeignKey("categories.id", ondelete="CASCADE"), primary_key=True)
 )
 
+# Association table for recommended pujas for temples (many-to-many)
+temple_recommended_pujas = Table(
+    "temple_recommended_pujas",
+    Base.metadata,
+    Column("temple_id", Integer, ForeignKey("temple.id", ondelete="CASCADE"), primary_key=True),
+    Column("puja_id", Integer, ForeignKey("pujas.id", ondelete="CASCADE"), primary_key=True),
+)
+
+# Association table for temples and chadawas (many-to-many)
+temple_chadawas = Table(
+    "temple_chadawas",
+    Base.metadata,
+    Column("temple_id", Integer, ForeignKey("temple.id", ondelete="CASCADE"), primary_key=True),
+    Column("chadawa_id", Integer, ForeignKey("chadawas.id", ondelete="CASCADE"), primary_key=True),
+)
+
 class Category(Base):
     __tablename__ = "categories"
 
@@ -349,5 +378,32 @@ class Blog(Base):
         back_populates="blogs"
     )
 
+
+
+class temple(Base):
+    __tablename__ = "temple"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(100), nullable=False)
+    description = Column(Text, nullable=True)
+    image_url = Column(Text, nullable=True)
+    location = Column(String(100), nullable=True)
+    slug = Column(String(100), nullable=True)
+    # recommended pujas (many-to-many)
+    recommended_pujas = relationship(
+        "Puja",
+        secondary="temple_recommended_pujas",
+        back_populates="temples",
+        lazy="joined",
+    )
+    # chadawas available/offered at this temple
+    chadawas = relationship(
+        "Chadawa",
+        secondary="temple_chadawas",
+        back_populates="temples",
+        lazy="joined",
+    )
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
 

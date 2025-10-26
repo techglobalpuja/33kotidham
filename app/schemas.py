@@ -400,6 +400,41 @@ class BlogBase(BaseModel):
     slug: Optional[str] = None
 
 
+# Temple schemas
+class TempleBase(BaseModel):
+    name: str
+    description: Optional[str] = None
+    image_url: Optional[str] = None
+    location: Optional[str] = None
+    slug: Optional[str] = None
+
+
+class TempleCreate(TempleBase):
+    recommended_puja_ids: Optional[List[int]] = None
+    chadawa_ids: Optional[List[int]] = None
+
+
+class TempleUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    image_url: Optional[str] = None
+    location: Optional[str] = None
+    slug: Optional[str] = None
+    recommended_puja_ids: Optional[List[int]] = None
+    chadawa_ids: Optional[List[int]] = None
+
+
+class TempleResponse(TempleBase, BaseResponse):
+    id: int
+    created_at: datetime
+    updated_at: datetime
+    recommended_pujas: Optional[List[PujaResponse]] = []
+    chadawas: Optional[List[ChadawaResponse]] = []
+
+    class Config:
+        from_attributes = True
+
+
 class BlogCreate(BlogBase):
     pass
 

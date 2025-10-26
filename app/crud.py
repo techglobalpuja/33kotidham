@@ -332,6 +332,97 @@ class ChadawaCRUD:
         return True
 
 
+# Temple CRUD operations
+class TempleCRUD:
+    @staticmethod
+    def get_temple(db: Session, temple_id: int) -> Optional[models.temple]:
+        return db.query(models.temple).filter(models.temple.id == temple_id).first()
+
+    @staticmethod
+    def get_temples(db: Session, skip: int = 0, limit: int = 100) -> List[models.temple]:
+        return db.query(models.temple).offset(skip).limit(limit).all()
+
+    @staticmethod
+    def create_temple(db: Session, temple: 'schemas.TempleCreate') -> models.temple:
+        # create base temple
+        db_temple = models.temple(
+            name=temple.name,
+            description=temple.description,
+            image_url=temple.image_url,
+            location=temple.location,
+            slug=temple.slug,
+        )
+        db.add(db_temple)
+        db.flush()
+
+        # attach recommended pujas if provided
+        if getattr(temple, 'recommended_puja_ids', None):
+            pujas = db.query(models.Puja).filter(models.Puja.id.in_(temple.recommended_puja_ids)).all()
+            for p in pujas:
+                db_temple.recommended_pujas.append(p)
+        # attach chadawas if provided
+        if getattr(temple, 'chadawa_ids', None):
+            chs = db.query(models.Chadawa).filter(models.Chadawa.id.in_(temple.chadawa_ids)).all()
+            for c in chs:
+                db_temple.chadawas.append(c)
+
+        db.commit()
+        db.refresh(db_temple)
+        return db_temple
+
+    @staticmethod
+    def update_temple(db: Session, temple_id: int, temple_update: 'schemas.TempleUpdate') -> Optional[models.temple]:
+        db_temple = db.query(models.temple).filter(models.temple.id == temple_id).first()
+        if not db_temple:
+            return None
+
+        update_data = temple_update.dict(exclude_unset=True)
+        # handle recommended puja ids replacement
+        if 'recommended_puja_ids' in update_data:
+            rpids = update_data.pop('recommended_puja_ids') or []
+            # clear existing
+            db_temple.recommended_pujas = []
+            if rpids:
+                pujas = db.query(models.Puja).filter(models.Puja.id.in_(rpids)).all()
+                db_temple.recommended_pujas = pujas
+        # handle chadawa ids replacement
+        if 'chadawa_ids' in update_data:
+            cids = update_data.pop('chadawa_ids') or []
+            db_temple.chadawas = []
+            if cids:
+                chs = db.query(models.Chadawa).filter(models.Chadawa.id.in_(cids)).all()
+                db_temple.chadawas = chs
+
+        for field, value in update_data.items():
+            setattr(db_temple, field, value)
+
+        db.commit()
+        db.refresh(db_temple)
+        return db_temple
+
+    @staticmethod
+    def delete_temple(db: Session, temple_id: int) -> bool:
+        db_temple = db.query(models.temple).filter(models.temple.id == temple_id).first()
+        if not db_temple:
+            return False
+        db.delete(db_temple)
+        db.commit()
+        return True
+
+    @staticmethod
+    def set_recommended_pujas(db: Session, temple_id: int, puja_ids: List[int]) -> Optional[models.temple]:
+        db_temple = db.query(models.temple).filter(models.temple.id == temple_id).first()
+        if not db_temple:
+            return None
+        db_temple.recommended_pujas = []
+        if puja_ids:
+            pujas = db.query(models.Puja).filter(models.Puja.id.in_(puja_ids)).all()
+            db_temple.recommended_pujas = pujas
+        db.commit()
+        db.refresh(db_temple)
+        return db_temple
+
+
 # Booking CRUD operations
 class BookingCRUD:
     @staticmethod
