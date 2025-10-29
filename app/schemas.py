@@ -251,6 +251,7 @@ class BookingChadawaResponse(BaseResponse):
 
 class BookingBase(BaseModel):
     puja_id: Optional[int] = None
+    temple_id: Optional[int] = None
     plan_id: Optional[int] = None
     booking_date: Optional[datetime] = None
     # personal details
@@ -277,6 +278,7 @@ class BookingResponse(BookingBase, BaseResponse):
     created_at: datetime
     user: Optional[UserResponse] = None
     puja: Optional[PujaResponse] = None
+    temple: Optional["TempleResponse"] = None
     plan: Optional[PlanResponse] = None
     booking_chadawas: List[BookingChadawaResponse] = []
 
@@ -477,3 +479,9 @@ class BlogListResponse(BaseResponse):
     created_at: datetime
     updated_at: datetime
     categories: List[CategoryResponse] = []  # Add categories list to response
+
+
+# Resolve forward references for Pydantic models that reference each other
+BookingResponse.update_forward_refs()
+PujaResponse.update_forward_refs()
+TempleResponse.update_forward_refs()

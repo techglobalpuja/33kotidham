@@ -209,6 +209,7 @@ class Booking(Base):
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     puja_id = Column(Integer, ForeignKey("pujas.id"), nullable=True)
+    temple_id = Column(Integer, ForeignKey("temple.id"), nullable=True)
     plan_id = Column(Integer, ForeignKey("plans.id"), nullable=True)
     booking_date = Column(DateTime(timezone=True), server_default=func.now())
     # Personal details supplied at booking time
@@ -222,6 +223,7 @@ class Booking(Base):
     # Relationships
     user = relationship("User", back_populates="bookings")
     puja = relationship("Puja", back_populates="bookings")
+    temple = relationship("temple", back_populates="bookings")
     plan = relationship("Plan", back_populates="bookings")
     booking_chadawas = relationship("BookingChadawa", back_populates="booking")
     payment = relationship("Payment", back_populates="booking", uselist=False)
@@ -403,6 +405,8 @@ class temple(Base):
         back_populates="temples",
         lazy="joined",
     )
+    # bookings made for this temple
+    bookings = relationship("Booking", back_populates="temple")
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 

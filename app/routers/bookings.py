@@ -76,6 +76,14 @@ def create_booking(
             )
     
     # Validate plan exists
+    # Validate temple exists (if provided)
+    if getattr(booking, 'temple_id', None):
+        temple = crud.TempleCRUD.get_temple(db, booking.temple_id)
+        if not temple:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Temple not found"
+            )
     if booking.plan_id:
         plan = crud.PlanCRUD.get_plan(db, booking.plan_id)
         if not plan:
@@ -235,6 +243,9 @@ def create_booking_with_razorpay(
         booking.puja_id = None
     if getattr(booking, 'plan_id', None) in (0, ''):
         booking.plan_id = None
+    # Normalize temple_id as well
+    if getattr(booking, 'temple_id', None) in (0, ''):
+        booking.temple_id = None
 
     # Validate puja exists (if provided)
     if getattr(booking, 'puja_id', None):
@@ -243,6 +254,15 @@ def create_booking_with_razorpay(
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Puja not found"
+            )
+
+    # Validate temple exists (if provided)
+    if getattr(booking, 'temple_id', None):
+        temple = crud.TempleCRUD.get_temple(db, booking.temple_id)
+        if not temple:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Temple not found"
             )
 
     # Validate plan exists (if provided)
