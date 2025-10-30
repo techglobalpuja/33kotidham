@@ -114,16 +114,60 @@ class OTPCRUD:
 class PujaCRUD:
     @staticmethod
     def get_puja(db: Session, puja_id: int) -> Optional[models.Puja]:
-        return db.query(models.Puja).options(
+        puja = db.query(models.Puja).options(
             joinedload(models.Puja.puja_chadawas).joinedload(models.PujaChadawa.chadawa),
             joinedload(models.Puja.plan_ids)
         ).filter(models.Puja.id == puja_id).first()
+
+        # If the puja has a date and time and is past, auto-disable it
+        try:
+            if puja and getattr(puja, 'is_active', False):
+                puja_date = getattr(puja, 'date', None)
+                puja_time = getattr(puja, 'time', None)
+                if puja_date and puja_time:
+                    combined = datetime.combine(puja_date, puja_time)
+                    # Use UTC now for comparison (consistent with other uses of datetime.utcnow())
+                    if datetime.utcnow() > combined:
+                        # mark inactive
+                        db.query(models.Puja).filter(models.Puja.id == puja.id).update({"is_active": False}, synchronize_session=False)
+                        db.commit()
+                        db.refresh(puja)
+        except Exception:
+            # If anything goes wrong during auto-disable, fail silently and return the puja as-is
+            pass
+
+        return puja
     
     @staticmethod
     def get_pujas(db: Session, skip: int = 0, limit: int = 100, is_active: Optional[bool] = False) -> List[models.Puja]:
-        """Get pujas with optional is_active filter. Default is_active=False per API requirement."""
+        """Get pujas with optional is_active filter. Default is_active=False per API requirement.
+
+        Auto-disable any puja whose date+time is in the past by setting is_active=False.
+        """
         query = db.query(models.Puja)
-        # If is_active is not None, filter by its boolean value
+        # Fetch candidates first (we'll adjust is_active for expired ones)
+        candidates = query.offset(skip).limit(limit).all()
+
+        expired_ids = []
+        for p in candidates:
+            try:
+                if getattr(p, 'is_active', False):
+                    puja_date = getattr(p, 'date', None)
+                    puja_time = getattr(p, 'time', None)
+                    if puja_date and puja_time:
+                        combined = datetime.combine(puja_date, puja_time)
+                        if datetime.utcnow() > combined:
+                            expired_ids.append(p.id)
+            except Exception:
+                continue
+
+        # Bulk-update expired pujas to is_active=False
+        if expired_ids:
+            db.query(models.Puja).filter(models.Puja.id.in_(expired_ids)).update({"is_active": False}, synchronize_session=False)
+            db.commit()
+
+        # Now apply requested is_active filter (note: if is_active is None we return all)
+        query = db.query(models.Puja)
         if is_active is not None:
             query = query.filter(models.Puja.is_active == is_active)
         return query.offset(skip).limit(limit).all()
