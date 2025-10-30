@@ -97,6 +97,8 @@ class Puja(Base):
 
     # General
     category = Column(String(100), nullable=True)
+    # Active flag: admin can enable/disable puja. Default is False.
+    is_active = Column(Boolean, default=False, nullable=False)
 
     # Timestamps
     created_at = Column(DateTime(timezone=True), server_default=func.now())

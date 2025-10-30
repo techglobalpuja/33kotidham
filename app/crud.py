@@ -120,8 +120,13 @@ class PujaCRUD:
         ).filter(models.Puja.id == puja_id).first()
     
     @staticmethod
-    def get_pujas(db: Session, skip: int = 0, limit: int = 100) -> List[models.Puja]:
-        return db.query(models.Puja).offset(skip).limit(limit).all()
+    def get_pujas(db: Session, skip: int = 0, limit: int = 100, is_active: Optional[bool] = False) -> List[models.Puja]:
+        """Get pujas with optional is_active filter. Default is_active=False per API requirement."""
+        query = db.query(models.Puja)
+        # If is_active is not None, filter by its boolean value
+        if is_active is not None:
+            query = query.filter(models.Puja.is_active == is_active)
+        return query.offset(skip).limit(limit).all()
     
     @staticmethod
     def create_puja(db: Session, puja: schemas.PujaCreate) -> models.Puja:

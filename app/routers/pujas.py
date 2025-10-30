@@ -14,10 +14,11 @@ router = APIRouter(prefix="/pujas", tags=["pujas"])
 def get_pujas(
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=100),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    is_active: bool = Query(False, description="Filter by is_active; default is False")
 ):
     """Get all pujas (Public endpoint)."""
-    return crud.PujaCRUD.get_pujas(db, skip=skip, limit=limit)
+    return crud.PujaCRUD.get_pujas(db, skip=skip, limit=limit, is_active=is_active)
 
 
 @router.get("/{puja_id}", response_model=schemas.PujaResponse)
