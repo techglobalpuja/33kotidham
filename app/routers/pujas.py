@@ -24,14 +24,14 @@ def get_pujas(
 @router.get("/{puja_id}", response_model=schemas.PujaResponse)
 def get_puja(puja_id: int, db: Session = Depends(get_db)):
     """Get puja by ID (Public endpoint)."""
-    puja = db.query(models.Puja).filter(models.Puja.id == puja_id).first()
+    # Use CRUD getter so auto-disable logic runs (date+time expiration)
+    puja = crud.PujaCRUD.get_puja(db, puja_id)
     if not puja:
         raise HTTPException(status_code=404, detail="Puja not found")
 
-    # Populate plan_ids with the IDs of associated Plan objects
+    # Build response model so nested chadawas list is populated correctly
     puja_response = schemas.PujaResponse.from_orm(puja)
     puja_response.plan_ids = [plan.id for plan in puja.plan_ids]
-    # Populate chadawas from association objects
     puja_response.chadawas = [schemas.ChadawaResponse.from_orm(pc.chadawa) for pc in puja.puja_chadawas]
 
     return puja_response
