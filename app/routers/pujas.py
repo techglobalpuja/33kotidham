@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
-from typing import List
+from typing import List, Optional
 from app.database import get_db
 from app import schemas, crud
 from app.auth import get_admin_user, get_current_active_user
@@ -15,9 +15,9 @@ def get_pujas(
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=100),
     db: Session = Depends(get_db),
-    is_active: bool = Query(False, description="Filter by is_active; default is False")
+    is_active: Optional[bool] = Query(None, description="Filter by is_active. If omitted (null) returns all pujas")
 ):
-    """Get all pujas (Public endpoint)."""
+    """Get all pujas (Public endpoint). If `is_active` is omitted, returns all pujas."""
     return crud.PujaCRUD.get_pujas(db, skip=skip, limit=limit, is_active=is_active)
 
 

@@ -10,6 +10,35 @@ from app.services import calculate_booking_amount, verify_razorpay_signature
 
 router = APIRouter(prefix="/bookings", tags=["bookings"])
 
+@router.get("/puja", response_model=List[schemas.BookingResponse])
+def get_puja_bookings(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=100),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """Get puja bookings (puja_id not null). Admins only."""
+    if current_user.role not in ["admin", "super_admin"]:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    query = db.query(crud.models.Booking).filter(crud.models.Booking.puja_id != None)
+    bookings = query.offset(skip).limit(limit).all()
+    return [schemas.BookingResponse.from_orm(b) for b in bookings]
+
+
+@router.get("/temple-chadawa", response_model=List[schemas.BookingResponse])
+def get_temple_chadawa_bookings(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=100),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """Get temple chadawa bookings (temple_id not null). Admins only."""
+    if current_user.role not in ["admin", "super_admin"]:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    query = db.query(crud.models.Booking).filter(crud.models.Booking.temple_id != None)
+    bookings = query.offset(skip).limit(limit).all()
+    return [schemas.BookingResponse.from_orm(b) for b in bookings]
+
 
 @router.get("/", response_model=List[schemas.BookingResponse])
 def get_bookings(
