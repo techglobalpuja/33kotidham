@@ -175,7 +175,11 @@ class PujaCRUD:
     @staticmethod
     def create_puja(db: Session, puja: schemas.PujaCreate) -> models.Puja:
         # exclude non-model fields (benefits, plan_ids, chadawa_ids) when constructing the ORM model
-        db_puja = models.Puja(**puja.dict(exclude={"benefits", "plan_ids", "chadawa_ids"}))
+        # Ensure is_active from schema (if provided) is honored and coerced to bool
+        puja_data = puja.dict(exclude={"benefits", "plan_ids", "chadawa_ids"})
+        # Coerce is_active to a proper bool and provide default False if missing
+        puja_data['is_active'] = bool(puja_data.get('is_active', False))
+        db_puja = models.Puja(**puja_data)
         db.add(db_puja)
         db.commit()
         db.refresh(db_puja)
