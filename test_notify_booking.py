@@ -17,8 +17,8 @@ headers = {
 
 # Your booking details
 booking_data = {
-    "puja_id": 72,
-    "temple_id": 0,
+    "puja_id": 0,
+    "temple_id": 12,
     "plan_id": 7,
     "booking_date": "2025-11-02T06:31:51.169Z",
     "mobile_number": "8962507486",

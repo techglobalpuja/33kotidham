@@ -18,6 +18,7 @@ class Settings:
     TWILIO_ACCOUNT_SID: str = config("TWILIO_ACCOUNT_SID", default="")
     TWILIO_AUTH_TOKEN: str = config("TWILIO_AUTH_TOKEN", default="")
     TWILIO_PHONE_NUMBER: str = config("TWILIO_PHONE_NUMBER", default="")
+    TWILIO_WHATSAPP_NUMBER: str = config("TWILIO_WHATSAPP_NUMBER", default="whatsapp:+14155238886")
     
     # SMS Provider Selection
     SMS_PROVIDER: str = config("SMS_PROVIDER", default="auto")  # auto, twilio, msg91
@@ -57,7 +58,7 @@ class Settings:
     
     # Production Database
     PRODUCTION_DATABASE_URL: str = config("PRODUCTION_DATABASE_URL", default="")
-    CORS_ORIGINS: List[str] = config("CORS_ORIGINS", default="http://localhost:3000,http://localhost:8080").split(",")
+    CORS_ORIGINS: List[str] = config("CORS_ORIGINS", default="http://localhost:3000,http://localhost:8080,https://api.33kotidham.in,https://api.33kotidham.com,https://33kotidham.com").split(",")
     
     # File Upload
     UPLOAD_DIR: str = "uploads"

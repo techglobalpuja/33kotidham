@@ -143,25 +143,35 @@ def create_booking(
     created_booking = crud.BookingCRUD.create_booking(db, booking, current_user.id)
     
     # Send notification when booking is created (PENDING status)
+    print("\n>>> TEMPLE BOOKING CREATED - checking if should notify...")
     try:
         import logging
         logger = logging.getLogger(__name__)
+        
         user_email = current_user.email or ""
-        user_phone = booking.whatsapp_number or booking.mobile_number or current_user.mobile
-        logger.info(f"📬 Sending notification for booking {created_booking.id}")
-        logger.info(f"   Email: {user_email}, Phone: {user_phone}")
+        user_phone = booking.whatsapp_number or booking.mobile_number or getattr(current_user, 'mobile', None) or ""
+        print(f">>> Email: {user_email}, Phone: {user_phone}")
+        logger.info(f"📱 Phone (raw): {user_phone}")
+        logger.info(f"   whatsapp_number: {booking.whatsapp_number}")
+        logger.info(f"   mobile_number: {booking.mobile_number}")
+        logger.info(f"   current_user.mobile: {getattr(current_user, 'mobile', 'N/A')}")
+        logger.info(f"Puja ID: {booking.puja_id}")
+        logger.info(f"Plan ID: {booking.plan_id}")
+        
         if user_email or user_phone:
+            print(f"\nCALLING NOTIFICATION for phone={user_phone}, email={user_email}")
+            logger.info(f"Attempting to send notification...")
             result = NotificationService.send_booking_pending_notification(
                 created_booking,
                 user_email=user_email,
                 user_phone=user_phone
             )
-            logger.info(f"✅ Notification sent: {result}")
+            print(f"NOTIFICATION RESULT: {result}\n")
+            logger.info(f"Notification result: {result}")
         else:
-            logger.warning(f"⚠️  No email or phone number available for booking {created_booking.id}")
+            print(f"\nNO PHONE/EMAIL AVAILABLE\n")
+            logger.warning(f"No email or phone number available")
     except Exception as e:
-        import logging
-        logger = logging.getLogger(__name__)
         logger.error(f"❌ Notification error: {str(e)}", exc_info=True)
         # Don't fail the booking creation if notification fails
         pass
@@ -384,26 +394,40 @@ def create_booking_with_razorpay(
     db_booking = crud.BookingCRUD.create_booking(db, booking, current_user.id)
     
     # Send notification when booking is created (PENDING status)
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.info(f"\n{'='*70}")
+    logger.info(f"📬 BOOKING CREATED - Sending notifications")
+    logger.info(f"{'='*70}")
+    logger.info(f"Booking ID: {db_booking.id}")
+    logger.info(f"Booking Status: {db_booking.status}")
+    logger.info(f"User ID: {current_user.id}")
+    
     try:
-        import logging
-        logger = logging.getLogger(__name__)
         user_email = current_user.email or ""
-        user_phone = booking.whatsapp_number or booking.mobile_number or current_user.mobile
-        logger.info(f"📬 Sending notification for booking {db_booking.id}")
-        logger.info(f"   Email: {user_email}, Phone: {user_phone}")
+        user_phone = booking.whatsapp_number or booking.mobile_number or getattr(current_user, 'mobile', None) or ""
+        logger.info(f"� Email: {user_email}")
+        logger.info(f"📱 Phone: {user_phone}")
+        logger.info(f"Puja ID: {booking.puja_id}")
+        logger.info(f"Plan ID: {booking.plan_id}")
+        
         if user_email or user_phone:
+            logger.info(f"✉️ Attempting to send notification...")
             result = NotificationService.send_booking_pending_notification(
                 db_booking,
                 user_email=user_email,
                 user_phone=user_phone
             )
-            logger.info(f"✅ Notification sent: {result}")
+            logger.info(f"✅ Notification result: {result}")
         else:
-            logger.warning(f"⚠️  No email or phone number available for booking {db_booking.id}")
+            logger.warning(f"⚠️ No email or phone number available")
+            logger.warning(f"   current_user.email: {current_user.email}")
+            logger.warning(f"   booking.whatsapp_number: {booking.whatsapp_number}")
+            logger.warning(f"   booking.mobile_number: {booking.mobile_number}")
     except Exception as e:
-        import logging
-        logger = logging.getLogger(__name__)
-        logger.error(f"❌ Notification error: {str(e)}", exc_info=True)
+        logger.error(f"❌ Notification ERROR: {str(e)}", exc_info=True)
+    
+    logger.info(f"{'='*70}\n")
     
     # Calculate authoritative amount server-side using the persisted booking (safer)
     amount = calculate_booking_amount(db, db_booking)

@@ -366,15 +366,17 @@ class NotificationService:
     @staticmethod
     def format_booking_details(booking) -> str:
         """Format booking details for notification message."""
+        puja_name = booking.puja.name if booking.puja else "N/A"
+        plan_name = booking.plan.name if booking.plan else "N/A"
+        
         details = f"""
 Booking ID: {booking.id}
 Status: {booking.status.upper()}
 Booking Date: {booking.booking_date.strftime('%Y-%m-%d %H:%M:%S') if booking.booking_date else 'N/A'}
 
 Puja Details:
-- Puja ID: {booking.puja_id if booking.puja_id else 'N/A'}
-- Temple ID: {booking.temple_id if booking.temple_id else 'N/A'}
-- Plan ID: {booking.plan_id if booking.plan_id else 'N/A'}
+- Puja: {puja_name}
+- Plan: {plan_name}
 
 User Details:
 - Mobile: {booking.mobile_number or 'N/A'}
@@ -384,6 +386,307 @@ User Details:
 Thank you for booking with us!
 """
         return details.strip()
+    
+    @staticmethod
+    def format_booking_details_whatsapp(booking) -> str:
+        """Format booking details for WhatsApp message with emojis, pricing and images."""
+        from datetime import datetime
+        
+        try:
+            puja_name = booking.puja.name if booking.puja else "N/A"
+        except:
+            puja_name = "N/A"
+            
+        try:
+            plan_name = booking.plan.name if booking.plan else "N/A"
+        except:
+            plan_name = "N/A"
+        
+        # Extract temple name (for temple bookings)
+        try:
+            temple_name = booking.temple.name if booking.temple else "N/A"
+        except:
+            temple_name = "N/A"
+            
+        try:
+            temple_address = booking.puja.temple_address if booking.puja else "N/A"
+        except:
+            temple_address = "N/A"
+            
+        try:
+            puja_date = booking.puja.date if booking.puja else "N/A"
+        except:
+            puja_date = "N/A"
+            
+        try:
+            puja_time = booking.puja.time if booking.puja else "N/A"
+        except:
+            puja_time = "N/A"
+        
+        # Format time to 12-hour IST format
+        if puja_time and puja_time != "N/A":
+            try:
+                if isinstance(puja_time, str):
+                    time_obj = datetime.strptime(puja_time, "%H:%M:%S").time()
+                else:
+                    time_obj = puja_time
+                puja_time = datetime.combine(datetime.today(), time_obj).strftime("%I:%M %p") + " IST"
+            except:
+                puja_time = f"{puja_time} IST"
+        else:
+            puja_time = "N/A"
+        
+        # Get plan pricing
+        plan_price = "0"
+        try:
+            if booking.plan:
+                plan_price = booking.plan.discounted_price if booking.plan.discounted_price else booking.plan.actual_price
+        except:
+            plan_price = "0"
+        
+        # Calculate chadawa prices and details
+        chadawa_details = ""
+        chadawa_total = 0
+        try:
+            if booking.booking_chadawas and len(booking.booking_chadawas) > 0:
+                chadawa_details = "\n🎁 *Selected Offerings(chadawas):*\n"
+                for bc in booking.booking_chadawas:
+                    try:
+                        chadawa = bc.chadawa if hasattr(bc, 'chadawa') else bc.get('chadawa') if isinstance(bc, dict) else None
+                        if chadawa:
+                            chadawa_name = chadawa.name if hasattr(chadawa, 'name') else chadawa.get('name')
+                            chadawa_price = float(chadawa.price if hasattr(chadawa, 'price') else chadawa.get('price', 0))
+                            chadawa_details += f"   • {chadawa_name}: ₹{chadawa_price}\n"
+                            chadawa_total += chadawa_price
+                    except Exception as e:
+                        print(f"⚠️ Error parsing chadawa: {e}")
+                        continue
+        except Exception as e:
+            print(f"⚠️ Error processing chadawas: {e}")
+        
+        # Calculate total price
+        try:
+            plan_price_float = float(plan_price)
+        except:
+            plan_price_float = 0
+        
+        total_price = plan_price_float + chadawa_total
+        
+        # Get first puja image URL
+        puja_image = ""
+        try:
+            if booking.puja and booking.puja.images:
+                img_url = booking.puja.images[0].image_url if booking.puja.images else ""
+                if img_url:
+                    puja_image = NotificationService._normalize_image_url(img_url)
+        except:
+            pass
+        
+        # Build puja/temple section
+        puja_details_section = ""
+        
+        # For temple bookings (has temple but no puja)
+        if booking.temple and not booking.puja:
+            puja_details_section = f"""
+🏛️ *Temple Details:*
+   *Temple:* {temple_name}
+   📍 *Location:* {booking.temple.location if booking.temple and booking.temple.location else 'N/A'}
+   *Plan:* {plan_name}
+"""
+        # For puja bookings (has puja)
+        elif booking.puja:
+            # Check if puja details are all N/A
+            if not (puja_name == "N/A" and temple_address == "N/A" and puja_date == "N/A" and puja_time == "N/A"):
+                puja_details_section = f"""
+🙏 *Puja Details:*
+   *Name:* {puja_name}
+   *Plan:* {plan_name}
+   📍 *Location:* {temple_address}
+   📅 *Puja Date:* {puja_date}
+   ⏰ *Puja Time:* {puja_time}
+"""
+        
+        details = f"""🙏 Booking Received 🙏
+
+📋 *Booking Reference:* #{booking.id}
+✅ *Status:* {booking.status.upper()}
+📅 *Booking Created:* {booking.booking_date.strftime('%d-%m-%Y %H:%M') if booking.booking_date else 'N/A'}{puja_details_section}
+💰 *Pricing:*
+   *Plan Price:* ₹{plan_price}{chadawa_details}   *Total:* ₹{total_price}
+
+👤 *Your Details:*
+   *Gotra:* {booking.gotra or 'N/A'}
+   *Mobile:* {booking.mobile_number or 'N/A'}
+
+🙏 Thank you for choosing 33 Koti Dham! 🙏
+"""
+        
+        return details.strip()
+    
+    @staticmethod
+    def _normalize_image_url(url: str) -> str:
+        """Normalize image URL by adding base URL if needed."""
+        if not url:
+            return ""
+        if url.startswith("/uploda") or url.startswith("/uploads"):
+            return f"https://api.33kotidham.in{url}"
+        if url.startswith("http"):
+            return url
+        return f"https://api.33kotidham.in/{url}"
+    
+    @staticmethod
+    def _calculate_booking_total(booking) -> float:
+        """Calculate total booking amount including plan and all chadawas."""
+        try:
+            plan_price = float(booking.plan.discounted_price if booking.plan and booking.plan.discounted_price else booking.plan.actual_price if booking.plan else 0)
+        except:
+            plan_price = 0
+        
+        chadawa_total = 0
+        try:
+            if booking.booking_chadawas and len(booking.booking_chadawas) > 0:
+                for bc in booking.booking_chadawas:
+                    try:
+                        chadawa = bc.chadawa if hasattr(bc, 'chadawa') else bc.get('chadawa') if isinstance(bc, dict) else None
+                        if chadawa:
+                            price = float(chadawa.price if hasattr(chadawa, 'price') else chadawa.get('price', 0))
+                            chadawa_total += price
+                    except Exception as e:
+                        print(f"⚠️ Error parsing chadawa price: {e}")
+                        continue
+        except Exception as e:
+            print(f"⚠️ Error calculating chadawa total: {e}")
+        
+        return plan_price + chadawa_total
+    
+    @staticmethod
+    def _format_chadawa_html_for_email(booking) -> str:
+        """Format chadawas as HTML rows for email."""
+        if not booking.booking_chadawas or len(booking.booking_chadawas) == 0:
+            return ""
+        
+        html = '<div style="margin: 10px 0;"><strong>🎁 Selected Offerings:</strong><br>'
+        try:
+            for bc in booking.booking_chadawas:
+                try:
+                    chadawa = bc.chadawa if hasattr(bc, 'chadawa') else bc.get('chadawa') if isinstance(bc, dict) else None
+                    if chadawa:
+                        chadawa_name = chadawa.name if hasattr(chadawa, 'name') else chadawa.get('name')
+                        chadawa_price = float(chadawa.price if hasattr(chadawa, 'price') else chadawa.get('price', 0))
+                        html += f"<div style='display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid #e8e8e8; font-size: 14px;'>"
+                        html += f"<span style='padding-left: 15px;'>• {chadawa_name}</span>"
+                        html += f"<span>₹{chadawa_price}</span>"
+                        html += f"</div>"
+                except Exception as e:
+                    print(f"⚠️ Error formatting chadawa row: {e}")
+                    continue
+        except Exception as e:
+            print(f"⚠️ Error processing chadawas for HTML: {e}")
+        
+        html += "</div>"
+        return html
+    
+    @staticmethod
+    def format_booking_details_email(booking) -> str:
+        """Format booking details for email with HTML styling, pricing and images."""
+        puja_name = booking.puja.name if booking.puja else "N/A"
+        plan_name = booking.plan.name if booking.plan else "N/A"
+        temple_address = booking.puja.temple_address if booking.puja else "N/A"
+        puja_date = booking.puja.date if booking.puja else "N/A"
+        puja_time = booking.puja.time if booking.puja else "N/A"
+        
+        # Get pricing
+        plan_actual = booking.plan.actual_price if booking.plan else "0"
+        plan_discount = booking.plan.discounted_price if booking.plan and booking.plan.discounted_price else plan_actual
+        
+        # Get puja image
+        puja_image = ""
+        if booking.puja and booking.puja.temple_image_url:
+            puja_image = NotificationService._normalize_image_url(booking.puja.temple_image_url)
+        
+        # Build image HTML
+        image_html = ""
+        if puja_image:
+            image_html = f"""
+            <div style="margin: 20px 0; text-align: center;">
+                <img src="{puja_image}" alt="{puja_name}" style="max-width: 100%; height: auto; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+            </div>
+            """
+        
+        # Get all puja images if available
+        puja_images_html = ""
+        if booking.puja and booking.puja.images and len(booking.puja.images) > 0:
+            puja_images_html = "<div style='margin: 15px 0;'><h4 style='color: #8B4513; margin-bottom: 10px;'>📸 Puja Gallery:</h4>"
+            puja_images_html += "<div style='display: flex; gap: 10px; flex-wrap: wrap;'>"
+            for img in booking.puja.images[:4]:  # Show first 4 images
+                if img.image_url:
+                    normalized_url = NotificationService._normalize_image_url(img.image_url)
+                    puja_images_html += f"<img src='{normalized_url}' alt='Puja' style='max-width: 150px; height: 120px; object-fit: cover; border-radius: 5px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);'>"
+            puja_images_html += "</div></div>"
+        
+        html = f"""
+<div style="font-family: Arial, sans-serif; color: #333; background-color: #fafafa; padding: 20px;">
+    <div style="max-width: 600px; margin: 0 auto; background-color: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+        
+        <div style="background: linear-gradient(135deg, #8B4513 0%, #D2691E 100%); padding: 20px; text-align: center; color: white;">
+            <h2 style="margin: 0; font-size: 24px;">� Booking Received</h2>
+            <p style="margin: 10px 0 0 0; font-size: 14px; opacity: 0.9;">Reference: #{booking.id}</p>
+        </div>
+        
+        <div style="padding: 25px;">
+            <p style="font-size: 16px; margin: 0 0 20px 0;">Dear Valued Customer,</p>
+            
+            <p>Thank you for your booking with <strong>33 Koti Dham</strong>! Your puja booking has been received and is pending confirmation.</p>
+            
+            {image_html}
+            
+            <div style="background-color: #fff8f0; padding: 15px; border-radius: 5px; margin: 15px 0; border-left: 4px solid #8B4513;">
+                <h4 style="color: #8B4513; margin-top: 0;">🙏 Puja Details</h4>
+                <p style="margin: 8px 0;"><strong>Puja Name:</strong> {puja_name}</p>
+                <p style="margin: 8px 0;"><strong>Plan:</strong> {plan_name}</p>
+                <p style="margin: 8px 0;"><strong>Location:</strong> {temple_address}</p>
+                <p style="margin: 8px 0;"><strong>Puja Date:</strong> {puja_date}</p>
+                <p style="margin: 8px 0;"><strong>Puja Time:</strong> {puja_time}</p>
+            </div>
+            
+            <div style="background-color: #f0f8ff; padding: 15px; border-radius: 5px; margin: 15px 0; border-left: 4px solid #4169E1;">
+                <h4 style="color: #4169E1; margin-top: 0;">💰 Pricing Details</h4>
+                <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #e0e0e0;">
+                    <span><strong>Plan:</strong></span>
+                    <span>₹{plan_discount}</span>
+                </div>
+                {NotificationService._format_chadawa_html_for_email(booking)}
+                <div style="display: flex; justify-content: space-between; padding: 8px 0; color: #4CAF50; font-size: 18px; font-weight: bold;">
+                    <span><strong>Total Amount:</strong></span>
+                    <span>₹{NotificationService._calculate_booking_total(booking)}</span>
+                </div>
+            </div>
+            
+            <div style="background-color: #fffacd; padding: 15px; border-radius: 5px; margin: 15px 0; border-left: 4px solid #FFD700;">
+                <h4 style="color: #8B4513; margin-top: 0;">👤 Your Details</h4>
+                <p style="margin: 8px 0;"><strong>Gotra:</strong> {booking.gotra or 'N/A'}</p>
+                <p style="margin: 8px 0;"><strong>Mobile:</strong> {booking.mobile_number or 'N/A'}</p>
+                <p style="margin: 8px 0;"><strong>WhatsApp:</strong> {booking.whatsapp_number or 'N/A'}</p>
+                <p style="margin: 8px 0;"><strong>Booking Status:</strong> <span style="color: #FF6347; font-weight: bold;">PENDING</span></p>
+            </div>
+            
+            {puja_images_html}
+            
+            <div style="background-color: #e8f4f8; padding: 15px; border-radius: 5px; margin: 15px 0; border-left: 4px solid #2196F3;">
+                <ul style="margin: 10px 0; padding-left: 20px;">
+                    <li>Further puja details will be shared with you</li>
+                </ul>
+            </div>
+            
+            <p style="color: #666; font-size: 14px; margin-top: 25px; text-align: center;">
+                <strong>33 Koti Dham Team</strong><br>
+                Bringing Divine Blessings to Your Home 🙏
+            </p>
+        </div>
+    </div>
+</div>
+"""
+        return html
 
     @staticmethod
     def send_email_notification(
@@ -432,17 +735,21 @@ Thank you for booking with us!
         media_url: Optional[str] = None
     ) -> bool:
         """Send WhatsApp message notification using Twilio WhatsApp API."""
+        print(f"\n🔵 SEND_WHATSAPP_NOTIFICATION CALLED")
+        print(f"   Phone: {phone_number}")
+        print(f"   Message length: {len(message)}")
+        print(f"   Media URL: {media_url}")
+        
         if not settings.SEND_WHATSAPP_ON_BOOKING:
-            import logging
-            logging.warning(f"WhatsApp notifications disabled. Skipping message to {phone_number}")
+            print(f"🔴 SEND_WHATSAPP_ON_BOOKING = False, returning False")
             return False
 
         if not settings.TWILIO_ACCOUNT_SID or not settings.TWILIO_AUTH_TOKEN:
-            import logging
-            logging.warning("Twilio credentials not configured. Skipping WhatsApp message.")
+            print(f"🔴 Twilio credentials not configured")
             return False
 
         try:
+            print(f"🟢 Initializing Twilio client...")
             # Initialize Twilio client
             client = Client(settings.TWILIO_ACCOUNT_SID, settings.TWILIO_AUTH_TOKEN)
 
@@ -455,63 +762,192 @@ Thank you for booking with us!
             if not phone.startswith("+"):
                 phone = "+" + phone
 
-            # Send via Twilio WhatsApp
-            msg = client.messages.create(
-                body=message,
-                from_=f"whatsapp:{settings.TWILIO_PHONE_NUMBER}",
-                to=f"whatsapp:{phone}"
-            )
+            print(f"📤 Twilio WhatsApp Send Details:")
+            print(f"   From: whatsapp:{settings.TWILIO_WHATSAPP_NUMBER}")
+            print(f"   To: whatsapp:{phone}")
+            print(f"   Has Media: {bool(media_url)}")
+            print(f"   Message Length: {len(message)}")
 
-            import logging
-            logging.info(f"WhatsApp message sent successfully to {phone} via Twilio (SID: {msg.sid})")
-            return True
+            # Send via Twilio WhatsApp using sandbox number
+            try:
+                if media_url:
+                    print(f"📸 Sending WhatsApp WITH media attachment...")
+                    # Send message with media attachment
+                    msg = client.messages.create(
+                        body=message,
+                        from_=f"whatsapp:{settings.TWILIO_WHATSAPP_NUMBER}",
+                        to=f"whatsapp:{phone}",
+                        media_url=[media_url]
+                    )
+                else:
+                    print(f"📝 Sending WhatsApp TEXT ONLY (no media)...")
+                    # Send text-only message
+                    msg = client.messages.create(
+                        body=message,
+                        from_=f"whatsapp:{settings.TWILIO_WHATSAPP_NUMBER}",
+                        to=f"whatsapp:{phone}"
+                    )
+                
+                print(f"✅ Twilio API Response:")
+                print(f"   Message SID: {msg.sid}")
+                print(f"   Status: {msg.status}")
+                print(f"🟢 RETURNING TRUE\n")
+                return True
+                
+            except Exception as twilio_err:
+                print(f"🔴 Twilio API Error: {str(twilio_err)}")
+                print(f"   Error Type: {type(twilio_err).__name__}")
+                raise  # Re-raise to outer exception handler
+                
         except Exception as e:
-            import logging
-            logging.error(f"Failed to send WhatsApp message to {phone_number} via Twilio: {str(e)}")
+            print(f"🔴 FAILED to send WhatsApp message")
+            print(f"   Phone: {phone_number}")
+            print(f"   Exception: {str(e)}")
+            print(f"   Exception Type: {type(e).__name__}")
+            import traceback
+            print(f"   Traceback: {traceback.format_exc()}")
+            print(f"🔴 RETURNING FALSE\n")
             return False
 
     @staticmethod
     def send_booking_pending_notification(booking, user_email: str, user_phone: str) -> dict:
         """Send notification when booking is created (PENDING status)."""
+        print(f"\n{'='*70}")
+        print(f"🔔 NOTIFICATION SERVICE - PENDING NOTIFICATION")
+        print(f"{'='*70}")
+        print(f"📋 Booking ID: {booking.id}")
+        print(f"👤 Email: {user_email}")
+        print(f"📱 Phone (Raw): '{user_phone}'")
+        print(f"📱 Phone (Type): {type(user_phone)}")
+        print(f"📱 Phone (Bool): {bool(user_phone)}")
+        print(f"📱 Phone (Len): {len(str(user_phone)) if user_phone else 0}")
+        
         if not settings.SEND_BOOKING_NOTIFICATIONS:
-            import logging
-            logging.info(f"Booking notifications disabled. Skipping notifications for booking {booking.id}")
+            print(f"⚠️ Booking notifications DISABLED in settings")
             return {"email_sent": False, "whatsapp_sent": False}
 
-        booking_details = NotificationService.format_booking_details(booking)
+        print(f"✅ Booking notifications ENABLED")
+        print(f"✅ SEND_WHATSAPP_ON_BOOKING: {settings.SEND_WHATSAPP_ON_BOOKING}")
+        print(f"✅ TWILIO_ACCOUNT_SID: {'SET' if settings.TWILIO_ACCOUNT_SID else 'NOT SET'}")
+        print(f"🏛️ Puja: {booking.puja}")
+        print(f"📋 Plan: {booking.plan}")
 
-        # Email notification
-        email_subject = f"Booking Confirmed - Ref: {booking.id}"
+        # Email notification with enhanced details
+        email_subject = f"🙏 Booking Received - Ref: {booking.id} | 33 Koti Dham"
+        puja_name = booking.puja.name if booking.puja else "Puja"
+        
         email_body = f"""Dear Customer,
 
 Thank you for your booking with 33 Koti Dham!
 
-Your booking has been created and is pending confirmation.
+Your booking for {puja_name} has been received and is pending confirmation.
 
-{booking_details}
+Booking Reference: #{booking.id}
+Status: PENDING
 
 We will confirm your booking shortly and send you further details.
 
 Best regards,
 33 Koti Dham Team
 """
-        email_sent = NotificationService.send_email_notification(user_email, email_subject, email_body)
+        
+        email_html = f"""<html>
+<body style="font-family: Arial, sans-serif; color: #333;">
+    <div style="max-width: 600px; margin: 0 auto;">
+        <h2 style="color: #8B4513; text-align: center;">🙏 Booking Received</h2>
+        
+        <p>Dear Customer,</p>
+        
+        <p>Thank you for your booking with <strong>33 Koti Dham</strong>!</p>
+        
+        <p>Your booking for <strong>{puja_name}</strong> has been received and is pending confirmation.</p>
+        
+        {NotificationService.format_booking_details_email(booking)}
+        
+        <div style="background-color: #e8f4f8; padding: 15px; border-left: 4px solid #2196F3; margin: 20px 0;">
+            <p style="margin: 0;"><strong>Next Steps:</strong></p>
+            <p style="margin: 10px 0 0 0;">We will confirm your booking shortly and send you further details via email and WhatsApp.</p>
+        </div>
+        
+        <p style="color: #666; font-size: 12px; margin-top: 30px;">
+            Best regards,<br>
+            <strong>33 Koti Dham Team</strong><br>
+            Bringing Divine Blessings to Your Home
+        </p>
+    </div>
+</body>
+</html>"""
+        
+        email_sent = False
+        try:
+            print(f"📧 Sending email to: {user_email}")
+            email_sent = NotificationService.send_email_notification(user_email, email_subject, email_body, email_html)
+            print(f"✉️ Email notification: {'✅ SENT' if email_sent else '❌ FAILED'}")
+        except Exception as e:
+            print(f"❌ Email notification error: {str(e)}")
+            import traceback
+            print(traceback.format_exc())
+            email_sent = False
 
-        # WhatsApp notification
-        whatsapp_body = f"""🙏 *Booking Received* 🙏
+        # WhatsApp notification with enhanced details
+        whatsapp_sent = False
+        try:
+            print(f"💬 Building WhatsApp message...")
+            print(f"💬 User phone for WhatsApp: '{user_phone}'")
+            
+            if not user_phone or user_phone.strip() == "":
+                print(f"⚠️ SKIPPING WHATSAPP: No valid phone number provided")
+                print(f"   user_phone value: '{user_phone}'")
+                whatsapp_sent = False
+            else:
+                print(f"✅ Phone number valid, proceeding with WhatsApp")
+                
+                whatsapp_body = NotificationService.format_booking_details_whatsapp(booking)
+                
+                # Get puja image URL for WhatsApp media attachment
+                # NOTE: WhatsApp only supports: jpeg, jpg, png, gif, bmp
+                # It does NOT support: webp, svg, etc.
+                media_url = None
+                default_fallback_image = "https://api.33kotidham.com/uploads/images/b4bd9c33-d6e3-4069-b436-ef8e4c5cfaa0.png"
+                
+                try:
+                    if booking.puja and booking.puja.images:
+                        img_url = booking.puja.images[0].image_url if booking.puja.images else ""
+                        if img_url:
+                            normalized_url = NotificationService._normalize_image_url(img_url)
+                            # Check if URL has supported image format
+                            supported_formats = ['.jpg', '.jpeg', '.png', '.gif', '.bmp']
+                            if any(fmt in normalized_url.lower() for fmt in supported_formats):
+                                media_url = normalized_url
+                                print(f"📸 Image URL (supported format): {media_url}")
+                            else:
+                                # Use default fallback image for unsupported formats like .webp
+                                print(f"⚠️ Image format not supported by WhatsApp: {normalized_url}")
+                                print(f"   WhatsApp only supports: {', '.join(supported_formats)}")
+                                print(f"   📸 Using fallback image instead")
+                                media_url = default_fallback_image
+                except Exception as img_err:
+                    print(f"⚠️ Could not extract image: {img_err}")
+                    print(f"   📸 Using fallback image instead")
+                    media_url = default_fallback_image
+                
+                print(f"📤 Calling send_whatsapp_notification...")
+                print(f"   Phone: {user_phone}")
+                print(f"   Media URL: {media_url}")
+                print(f"   Message length: {len(whatsapp_body)}")
+                
+                whatsapp_sent = NotificationService.send_whatsapp_notification(user_phone, whatsapp_body, media_url=media_url)
+                print(f"💬 send_whatsapp_notification returned: {whatsapp_sent}")
+                print(f"💬 WhatsApp notification: {'✅ SENT' if whatsapp_sent else '❌ FAILED'}")
+                
+        except Exception as e:
+            print(f"❌ WhatsApp notification error: {str(e)}")
+            import traceback
+            print(traceback.format_exc())
+            whatsapp_sent = False
 
-Dear Customer,
-
-Your booking has been received!
-
-{booking_details}
-
-We will confirm your booking shortly.
-
-Thank you for choosing 33 Koti Dham!
-"""
-        whatsapp_sent = NotificationService.send_whatsapp_notification(user_phone, whatsapp_body)
-
+        print(f"{'='*70}\n")
+        
         return {
             "email_sent": email_sent,
             "whatsapp_sent": whatsapp_sent,
@@ -521,44 +957,90 @@ Thank you for choosing 33 Koti Dham!
     @staticmethod
     def send_booking_confirmed_notification(booking, user_email: str, user_phone: str) -> dict:
         """Send notification when booking is confirmed by admin."""
+        import logging
+        logger = logging.getLogger(__name__)
+        
         if not settings.SEND_BOOKING_NOTIFICATIONS:
-            import logging
-            logging.info(f"Booking notifications disabled. Skipping notifications for booking {booking.id}")
+            logger.info(f"Booking notifications disabled. Skipping notifications for booking {booking.id}")
             return {"email_sent": False, "whatsapp_sent": False}
 
-        booking_details = NotificationService.format_booking_details(booking)
+        logger.info(f"🔔 Starting confirmation notification for booking #{booking.id}")
 
-        # Email notification
-        email_subject = f"Booking Confirmed! - Ref: {booking.id}"
+        # Email notification with enhanced details
+        email_subject = f"✅ Booking Confirmed! - Ref: {booking.id} | 33 Koti Dham"
+        puja_name = booking.puja.name if booking.puja else "Puja"
+        
         email_body = f"""Dear Customer,
 
-Great news! Your booking has been confirmed.
+Great news! Your booking has been confirmed!
 
-{booking_details}
+Booking Reference: #{booking.id}
+Puja: {puja_name}
+Status: CONFIRMED
 
-Please keep this reference number safe for future correspondence.
-
-If you have any questions, please don't hesitate to contact us.
+Thank you for your trust in 33 Koti Dham!
 
 Best regards,
 33 Koti Dham Team
 """
-        email_sent = NotificationService.send_email_notification(user_email, email_subject, email_body)
+        
+        email_html = f"""<html>
+<body style="font-family: Arial, sans-serif; color: #333;">
+    <div style="max-width: 600px; margin: 0 auto;">
+        <h2 style="color: #4CAF50; text-align: center;">✅ Booking Confirmed!</h2>
+        
+        <p>Dear Customer,</p>
+        
+        <p style="color: #4CAF50; font-size: 18px;"><strong>Great news! Your booking has been confirmed.</strong></p>
+        
+        {NotificationService.format_booking_details_email(booking)}
+        
+        <div style="background-color: #c8e6c9; padding: 15px; border-left: 4px solid #4CAF50; margin: 20px 0;">
+            <p style="margin: 0; color: #2e7d32;"><strong>✅ Your booking is confirmed!</strong></p>
+            <p style="margin: 10px 0 0 0; color: #2e7d32;">You will receive further instructions soon via email and WhatsApp.</p>
+        </div>
+        
+        <p style="color: #666; font-size: 12px; margin-top: 30px;">
+            Best regards,<br>
+            <strong>33 Koti Dham Team</strong><br>
+            Bringing Divine Blessings to Your Home
+        </p>
+    </div>
+</body>
+</html>"""
+        
+        email_sent = False
+        try:
+            email_sent = NotificationService.send_email_notification(user_email, email_subject, email_body, email_html)
+            logger.info(f"✉️  Email confirmation: {'✅ Sent' if email_sent else '❌ Failed'}")
+        except Exception as e:
+            logger.error(f"❌ Email confirmation error: {str(e)}", exc_info=True)
 
-        # WhatsApp notification
-        whatsapp_body = f"""✅ *Booking Confirmed* ✅
+        # WhatsApp notification with enhanced details
+        try:
+            whatsapp_body = f"""✅ *Booking Confirmed!* ✅
 
-Dear Customer,
+{NotificationService.format_booking_details_whatsapp(booking)}
 
-Your booking has been confirmed!
+Your booking is now confirmed! 🎉
 
-{booking_details}
+Further instructions will be sent to you shortly.
 
-Thank you for choosing 33 Koti Dham!
-
-For support: Contact our team
+Thank you for choosing 33 Koti Dham! 🙏
 """
-        whatsapp_sent = NotificationService.send_whatsapp_notification(user_phone, whatsapp_body)
+            
+            # Get puja image URL for WhatsApp media attachment
+            media_url = None
+            if booking.puja and booking.puja.images:
+                img_url = booking.puja.images[0].image_url if booking.puja.images else ""
+                if img_url:
+                    media_url = NotificationService._normalize_image_url(img_url)
+            
+            whatsapp_sent = NotificationService.send_whatsapp_notification(user_phone, whatsapp_body, media_url=media_url)
+            logger.info(f"💬 WhatsApp confirmation: {'✅ Sent' if whatsapp_sent else '❌ Failed'}")
+        except Exception as e:
+            logger.error(f"❌ WhatsApp confirmation error: {str(e)}", exc_info=True)
+            whatsapp_sent = False
 
         return {
             "email_sent": email_sent,
