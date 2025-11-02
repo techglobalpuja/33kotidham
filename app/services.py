@@ -331,7 +331,7 @@ class EmailService:
 
 
 class NotificationService:
-    """Combined notification service."""
+    """Combined notification service for SMS, Email, and WhatsApp."""
     
     def __init__(self):
         self.sms_service = SMSService()
@@ -362,6 +362,209 @@ class NotificationService:
             )
         
         return email_sent
+
+    @staticmethod
+    def format_booking_details(booking) -> str:
+        """Format booking details for notification message."""
+        details = f"""
+Booking ID: {booking.id}
+Status: {booking.status.upper()}
+Booking Date: {booking.booking_date.strftime('%Y-%m-%d %H:%M:%S') if booking.booking_date else 'N/A'}
+
+Puja Details:
+- Puja ID: {booking.puja_id if booking.puja_id else 'N/A'}
+- Temple ID: {booking.temple_id if booking.temple_id else 'N/A'}
+- Plan ID: {booking.plan_id if booking.plan_id else 'N/A'}
+
+User Details:
+- Mobile: {booking.mobile_number or 'N/A'}
+- WhatsApp: {booking.whatsapp_number or 'N/A'}
+- Gotra: {booking.gotra or 'N/A'}
+
+Thank you for booking with us!
+"""
+        return details.strip()
+
+    @staticmethod
+    def send_email_notification(
+        to_email: str,
+        subject: str,
+        body: str,
+        html_body: Optional[str] = None
+    ) -> bool:
+        """Send email notification."""
+        if not settings.SEND_EMAIL_ON_BOOKING or not settings.SMTP_USERNAME:
+            import logging
+            logging.warning(f"Email notifications disabled or not configured. Skipping email to {to_email}")
+            return False
+
+        try:
+            msg = MIMEMultipart("alternative")
+            msg["Subject"] = subject
+            msg["From"] = settings.SMTP_FROM_EMAIL
+            msg["To"] = to_email
+
+            # Add plain text part
+            msg.attach(MIMEText(body, "plain"))
+
+            # Add HTML part if provided
+            if html_body:
+                msg.attach(MIMEText(html_body, "html"))
+
+            # Connect and send
+            with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT) as server:
+                server.starttls()
+                server.login(settings.SMTP_USERNAME, settings.SMTP_PASSWORD)
+                server.send_message(msg)
+
+            import logging
+            logging.info(f"Email sent successfully to {to_email}")
+            return True
+        except Exception as e:
+            import logging
+            logging.error(f"Failed to send email to {to_email}: {str(e)}")
+            return False
+
+    @staticmethod
+    def send_whatsapp_notification(
+        phone_number: str,
+        message: str,
+        media_url: Optional[str] = None
+    ) -> bool:
+        """Send WhatsApp message notification using Twilio WhatsApp API."""
+        if not settings.SEND_WHATSAPP_ON_BOOKING:
+            import logging
+            logging.warning(f"WhatsApp notifications disabled. Skipping message to {phone_number}")
+            return False
+
+        if not settings.TWILIO_ACCOUNT_SID or not settings.TWILIO_AUTH_TOKEN:
+            import logging
+            logging.warning("Twilio credentials not configured. Skipping WhatsApp message.")
+            return False
+
+        try:
+            # Initialize Twilio client
+            client = Client(settings.TWILIO_ACCOUNT_SID, settings.TWILIO_AUTH_TOKEN)
+
+            # Normalize phone number
+            phone = phone_number.replace("+", "").replace("-", "").replace(" ", "")
+            if not phone.startswith("91") and len(phone) == 10:  # Indian number without country code
+                phone = "91" + phone
+            
+            # Ensure it starts with +
+            if not phone.startswith("+"):
+                phone = "+" + phone
+
+            # Send via Twilio WhatsApp
+            msg = client.messages.create(
+                body=message,
+                from_=f"whatsapp:{settings.TWILIO_PHONE_NUMBER}",
+                to=f"whatsapp:{phone}"
+            )
+
+            import logging
+            logging.info(f"WhatsApp message sent successfully to {phone} via Twilio (SID: {msg.sid})")
+            return True
+        except Exception as e:
+            import logging
+            logging.error(f"Failed to send WhatsApp message to {phone_number} via Twilio: {str(e)}")
+            return False
+
+    @staticmethod
+    def send_booking_pending_notification(booking, user_email: str, user_phone: str) -> dict:
+        """Send notification when booking is created (PENDING status)."""
+        if not settings.SEND_BOOKING_NOTIFICATIONS:
+            import logging
+            logging.info(f"Booking notifications disabled. Skipping notifications for booking {booking.id}")
+            return {"email_sent": False, "whatsapp_sent": False}
+
+        booking_details = NotificationService.format_booking_details(booking)
+
+        # Email notification
+        email_subject = f"Booking Confirmed - Ref: {booking.id}"
+        email_body = f"""Dear Customer,
+
+Thank you for your booking with 33 Koti Dham!
+
+Your booking has been created and is pending confirmation.
+
+{booking_details}
+
+We will confirm your booking shortly and send you further details.
+
+Best regards,
+33 Koti Dham Team
+"""
+        email_sent = NotificationService.send_email_notification(user_email, email_subject, email_body)
+
+        # WhatsApp notification
+        whatsapp_body = f"""🙏 *Booking Received* 🙏
+
+Dear Customer,
+
+Your booking has been received!
+
+{booking_details}
+
+We will confirm your booking shortly.
+
+Thank you for choosing 33 Koti Dham!
+"""
+        whatsapp_sent = NotificationService.send_whatsapp_notification(user_phone, whatsapp_body)
+
+        return {
+            "email_sent": email_sent,
+            "whatsapp_sent": whatsapp_sent,
+            "booking_id": booking.id
+        }
+
+    @staticmethod
+    def send_booking_confirmed_notification(booking, user_email: str, user_phone: str) -> dict:
+        """Send notification when booking is confirmed by admin."""
+        if not settings.SEND_BOOKING_NOTIFICATIONS:
+            import logging
+            logging.info(f"Booking notifications disabled. Skipping notifications for booking {booking.id}")
+            return {"email_sent": False, "whatsapp_sent": False}
+
+        booking_details = NotificationService.format_booking_details(booking)
+
+        # Email notification
+        email_subject = f"Booking Confirmed! - Ref: {booking.id}"
+        email_body = f"""Dear Customer,
+
+Great news! Your booking has been confirmed.
+
+{booking_details}
+
+Please keep this reference number safe for future correspondence.
+
+If you have any questions, please don't hesitate to contact us.
+
+Best regards,
+33 Koti Dham Team
+"""
+        email_sent = NotificationService.send_email_notification(user_email, email_subject, email_body)
+
+        # WhatsApp notification
+        whatsapp_body = f"""✅ *Booking Confirmed* ✅
+
+Dear Customer,
+
+Your booking has been confirmed!
+
+{booking_details}
+
+Thank you for choosing 33 Koti Dham!
+
+For support: Contact our team
+"""
+        whatsapp_sent = NotificationService.send_whatsapp_notification(user_phone, whatsapp_body)
+
+        return {
+            "email_sent": email_sent,
+            "whatsapp_sent": whatsapp_sent,
+            "booking_id": booking.id
+        }
 
 
 # Global instances

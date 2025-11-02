@@ -35,6 +35,18 @@ class Settings:
     SMTP_PORT: int = config("SMTP_PORT", default=587, cast=int)
     SMTP_USERNAME: str = config("SMTP_USERNAME", default="")
     SMTP_PASSWORD: str = config("SMTP_PASSWORD", default="")
+    SMTP_FROM_EMAIL: str = config("SMTP_FROM_EMAIL", default="")
+    
+    # WhatsApp
+    WHATSAPP_ENABLED: bool = config("WHATSAPP_ENABLED", default=False, cast=bool)
+    WHATSAPP_API_URL: str = config("WHATSAPP_API_URL", default="https://graph.instagram.com/v18.0")
+    WHATSAPP_PHONE_NUMBER_ID: str = config("WHATSAPP_PHONE_NUMBER_ID", default="")
+    WHATSAPP_API_TOKEN: str = config("WHATSAPP_API_TOKEN", default="")
+    
+    # Notification Settings
+    SEND_BOOKING_NOTIFICATIONS: bool = config("SEND_BOOKING_NOTIFICATIONS", default=True, cast=bool)
+    SEND_EMAIL_ON_BOOKING: bool = config("SEND_EMAIL_ON_BOOKING", default=True, cast=bool)
+    SEND_WHATSAPP_ON_BOOKING: bool = config("SEND_WHATSAPP_ON_BOOKING", default=False, cast=bool)
     
     # Application
     DEBUG: bool = config("DEBUG", default=False, cast=bool)

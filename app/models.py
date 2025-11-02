@@ -248,7 +248,11 @@ class Payment(Base):
     __tablename__ = "payments"
 
     id = Column(Integer, primary_key=True, index=True)
-    booking_id = Column(Integer, ForeignKey("bookings.id"), nullable=False)
+    # Set ON DELETE CASCADE so that when a Booking is removed the Payment row
+    # is automatically removed at the database level. Note: updating an
+    # existing database requires an Alembic migration or a manual ALTER TABLE
+    # (see scripts/set_payments_fk_ondelete.py included with the project).
+    booking_id = Column(Integer, ForeignKey("bookings.id", ondelete="CASCADE"), nullable=False)
     razorpay_order_id = Column(String(100), nullable=False)
     razorpay_payment_id = Column(String(100), nullable=True)
     razorpay_signature = Column(String(255), nullable=True)
@@ -274,12 +278,12 @@ class PujaPlan(Base):
     puja = relationship(
         "Puja",
         back_populates="puja_plans",
-        overlaps="plan_ids"
+        overlaps="plan_ids,pujas"
     )
     plan = relationship(
         "Plan",
         back_populates="puja_plans",
-        overlaps="plan_ids"
+        overlaps="plan_ids,pujas"
     )
 
 

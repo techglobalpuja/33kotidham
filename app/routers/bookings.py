@@ -5,8 +5,7 @@ from app.database import get_db
 from app import schemas, crud
 from app.auth import get_current_active_user, get_admin_user
 from app.models import User, BookingStatus
-from app.services import create_razorpay_order
-from app.services import calculate_booking_amount, verify_razorpay_signature
+from app.services import create_razorpay_order, calculate_booking_amount, verify_razorpay_signature, NotificationService
 
 router = APIRouter(prefix="/bookings", tags=["bookings"])
 
@@ -141,7 +140,33 @@ def create_booking(
                     detail=f"Note is required for chadawa: {chadawa.name}"
                 )
     
-    return crud.BookingCRUD.create_booking(db, booking, current_user.id)
+    created_booking = crud.BookingCRUD.create_booking(db, booking, current_user.id)
+    
+    # Send notification when booking is created (PENDING status)
+    try:
+        import logging
+        logger = logging.getLogger(__name__)
+        user_email = current_user.email or ""
+        user_phone = booking.whatsapp_number or booking.mobile_number or current_user.mobile
+        logger.info(f"📬 Sending notification for booking {created_booking.id}")
+        logger.info(f"   Email: {user_email}, Phone: {user_phone}")
+        if user_email or user_phone:
+            result = NotificationService.send_booking_pending_notification(
+                created_booking,
+                user_email=user_email,
+                user_phone=user_phone
+            )
+            logger.info(f"✅ Notification sent: {result}")
+        else:
+            logger.warning(f"⚠️  No email or phone number available for booking {created_booking.id}")
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"❌ Notification error: {str(e)}", exc_info=True)
+        # Don't fail the booking creation if notification fails
+        pass
+    
+    return created_booking
 
 
 @router.put("/{booking_id}", response_model=schemas.BookingResponse)
@@ -225,7 +250,33 @@ def confirm_booking(
         )
     
     booking_update = schemas.BookingUpdate(status=BookingStatus.CONFIRMED)
-    crud.BookingCRUD.update_booking(db, booking_id, booking_update)
+    updated_booking = crud.BookingCRUD.update_booking(db, booking_id, booking_update)
+    
+    # Send confirmation notification to user
+    try:
+        import logging
+        logger = logging.getLogger(__name__)
+        user = booking.user
+        user_email = user.email or ""
+        user_phone = booking.whatsapp_number or booking.mobile_number or user.mobile
+        logger.info(f"📬 Sending confirmation notification for booking {booking_id}")
+        logger.info(f"   Email: {user_email}, Phone: {user_phone}")
+        if user_email or user_phone:
+            result = NotificationService.send_booking_confirmed_notification(
+                updated_booking,
+                user_email=user_email,
+                user_phone=user_phone
+            )
+            logger.info(f"✅ Confirmation notification sent: {result}")
+        else:
+            logger.warning(f"⚠️  No email or phone for booking {booking_id}")
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"❌ Confirmation notification error: {str(e)}", exc_info=True)
+    except Exception as e:
+        # Log error but don't fail the confirmation
+        print(f"Confirmation notification error: {str(e)}")
     
     return {"message": "Booking confirmed successfully"}
 
@@ -331,6 +382,29 @@ def create_booking_with_razorpay(
                 )
     # Persist booking first (status PENDING), then calculate authoritative amount server-side
     db_booking = crud.BookingCRUD.create_booking(db, booking, current_user.id)
+    
+    # Send notification when booking is created (PENDING status)
+    try:
+        import logging
+        logger = logging.getLogger(__name__)
+        user_email = current_user.email or ""
+        user_phone = booking.whatsapp_number or booking.mobile_number or current_user.mobile
+        logger.info(f"📬 Sending notification for booking {db_booking.id}")
+        logger.info(f"   Email: {user_email}, Phone: {user_phone}")
+        if user_email or user_phone:
+            result = NotificationService.send_booking_pending_notification(
+                db_booking,
+                user_email=user_email,
+                user_phone=user_phone
+            )
+            logger.info(f"✅ Notification sent: {result}")
+        else:
+            logger.warning(f"⚠️  No email or phone number available for booking {db_booking.id}")
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"❌ Notification error: {str(e)}", exc_info=True)
+    
     # Calculate authoritative amount server-side using the persisted booking (safer)
     amount = calculate_booking_amount(db, db_booking)
     # Create Razorpay order
