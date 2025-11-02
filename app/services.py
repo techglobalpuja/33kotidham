@@ -508,8 +508,8 @@ Thank you for booking with us!
    *Temple:* {temple_name}
    📍 *Location:* {booking.temple.location if booking.temple and booking.temple.location else 'N/A'}
 """
-            # Temple booking: only show chadawas pricing, no plan
-            pricing_section = f"""💰 *Pricing:*{chadawa_details}   *Total:* ₹{total_price}"""
+            # Temple booking: show chadawas with total (no "Pricing:" label, no plan)
+            pricing_section = f"""{chadawa_details}   *Total:* ₹{total_price}"""
         # For puja bookings (has puja)
         elif booking.puja:
             # Check if puja details are all N/A
@@ -584,7 +584,7 @@ Thank you for booking with us!
         if not booking.booking_chadawas or len(booking.booking_chadawas) == 0:
             return ""
         
-        html = '<div style="margin: 10px 0;"><strong>🎁 Selected Offerings:</strong><br>'
+        html = '<div style="margin: 10px 0;"><strong>   🎁 Selected Offerings:</strong><br>'
         try:
             for bc in booking.booking_chadawas:
                 try:
