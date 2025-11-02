@@ -185,30 +185,39 @@ def create_razorpay_order(amount, receipt_id):
 def calculate_booking_amount(db, booking) -> Decimal:
     """Calculate total amount for a Booking (persisted or incoming) using authoritative DB prices.
 
-    Only includes:
+    For PUJA bookings:
     - plan.actual_price (if plan_id provided)
-    - sum of selected chadawa prices (from booking_chadawas, chadawa_ids, or chadawas)
+    - sum of selected chadawa prices
+
+    For TEMPLE bookings:
+    - ONLY sum of selected chadawa prices (NO plan price)
 
     Returns Decimal total amount (INR)
     """
     total = Decimal('0')
 
-    # Plan price: prefer discounted_price when present, otherwise actual_price
-    plan_id = getattr(booking, 'plan_id', None)
-    if plan_id:
-        plan = db.query(models.Plan).filter(models.Plan.id == plan_id).first()
-        if plan:
-            price = None
-            if getattr(plan, 'discounted_price', None) is not None and str(getattr(plan, 'discounted_price')).strip() != "":
-                price = getattr(plan, 'discounted_price')
-            elif getattr(plan, 'actual_price', None) is not None:
-                price = getattr(plan, 'actual_price')
+    # Check if this is a temple booking (temple_id set, puja_id not set)
+    temple_id = getattr(booking, 'temple_id', None)
+    puja_id = getattr(booking, 'puja_id', None)
+    is_temple_booking = temple_id and not puja_id
 
-            if price is not None:
-                try:
-                    total += Decimal(str(price))
-                except Exception:
-                    pass
+    # Plan price: only include for PUJA bookings, NOT for temple bookings
+    if not is_temple_booking:
+        plan_id = getattr(booking, 'plan_id', None)
+        if plan_id:
+            plan = db.query(models.Plan).filter(models.Plan.id == plan_id).first()
+            if plan:
+                price = None
+                if getattr(plan, 'discounted_price', None) is not None and str(getattr(plan, 'discounted_price')).strip() != "":
+                    price = getattr(plan, 'discounted_price')
+                elif getattr(plan, 'actual_price', None) is not None:
+                    price = getattr(plan, 'actual_price')
+
+                if price is not None:
+                    try:
+                        total += Decimal(str(price))
+                    except Exception:
+                        pass
 
     # Collect chadawa ids from multiple possible shapes (persisted booking or request shapes)
     chadawa_ids = []
@@ -470,7 +479,13 @@ Thank you for booking with us!
         except:
             plan_price_float = 0
         
-        total_price = plan_price_float + chadawa_total
+        # For temple bookings: only chadawa total (no plan)
+        # For puja bookings: plan + chadawas
+        is_temple_booking = booking.temple and not booking.puja
+        if is_temple_booking:
+            total_price = chadawa_total
+        else:
+            total_price = plan_price_float + chadawa_total
         
         # Get first puja image URL
         puja_image = ""
@@ -482,8 +497,9 @@ Thank you for booking with us!
         except:
             pass
         
-        # Build puja/temple section
+        # Build puja/temple section and pricing section
         puja_details_section = ""
+        pricing_section = ""
         
         # For temple bookings (has temple but no puja)
         if booking.temple and not booking.puja:
@@ -491,8 +507,9 @@ Thank you for booking with us!
 🏛️ *Temple Details:*
    *Temple:* {temple_name}
    📍 *Location:* {booking.temple.location if booking.temple and booking.temple.location else 'N/A'}
-   *Plan:* {plan_name}
 """
+            # Temple booking: only show chadawas pricing, no plan
+            pricing_section = f"""💰 *Pricing:*{chadawa_details}   *Total:* ₹{total_price}"""
         # For puja bookings (has puja)
         elif booking.puja:
             # Check if puja details are all N/A
@@ -505,14 +522,16 @@ Thank you for booking with us!
    📅 *Puja Date:* {puja_date}
    ⏰ *Puja Time:* {puja_time}
 """
+            # Puja booking: show plan + chadawas pricing
+            pricing_section = f"""💰 *Pricing:*
+   *Plan Price:* ₹{plan_price}{chadawa_details}   *Total:* ₹{total_price}"""
         
         details = f"""🙏 Booking Received 🙏
 
 📋 *Booking Reference:* #{booking.id}
 ✅ *Status:* {booking.status.upper()}
 📅 *Booking Created:* {booking.booking_date.strftime('%d-%m-%Y %H:%M') if booking.booking_date else 'N/A'}{puja_details_section}
-💰 *Pricing:*
-   *Plan Price:* ₹{plan_price}{chadawa_details}   *Total:* ₹{total_price}
+{pricing_section}
 
 👤 *Your Details:*
    *Gotra:* {booking.gotra or 'N/A'}
