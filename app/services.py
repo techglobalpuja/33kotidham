@@ -503,7 +503,7 @@ Thank you for booking with us!
         # For temple bookings (has temple but no puja)
         if booking.temple and not booking.puja:
             puja_details_section = f"""
-🏛️ *Temple Details:*
+🛕 *Temple Details:*
    *Temple:* {temple_name}
    📍 *Location:* {booking.temple.location if booking.temple and booking.temple.location else 'N/A'}
 """
