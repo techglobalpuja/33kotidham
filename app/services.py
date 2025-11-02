@@ -508,8 +508,11 @@ Thank you for booking with us!
    *Temple:* {temple_name}
    📍 *Location:* {booking.temple.location if booking.temple and booking.temple.location else 'N/A'}
 """
-            # Temple booking: show chadawas with total (no "Pricing:" label, no plan)
-            pricing_section = f"""{chadawa_details}   *Total:* ₹{total_price}"""
+            # Temple booking: show chadawas with total on separate line
+            if chadawa_details:
+                pricing_section = f"""{chadawa_details}   *Total:* ₹{total_price}"""
+            else:
+                pricing_section = f"""   *Total:* ₹{total_price}"""
         # For puja bookings (has puja)
         elif booking.puja:
             # Check if puja details are all N/A
