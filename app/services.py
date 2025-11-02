@@ -472,7 +472,6 @@ Thank you for booking with us!
                         continue
         except Exception as e:
             print(f"⚠️ Error processing chadawas: {e}")
-        
         # Calculate total price
         try:
             plan_price_float = float(plan_price)
@@ -508,11 +507,8 @@ Thank you for booking with us!
    *Temple:* {temple_name}
    📍 *Location:* {booking.temple.location if booking.temple and booking.temple.location else 'N/A'}
 """
-            # Temple booking: show chadawas with total on separate line
-            if chadawa_details:
-                pricing_section = f"""{chadawa_details}   *Total:* ₹{total_price}"""
-            else:
-                pricing_section = f"""   *Total:* ₹{total_price}"""
+            # Temple booking: show chadawas with total on new line
+            pricing_section = f"""{chadawa_details}   *Total:* ₹{total_price}"""
         # For puja bookings (has puja)
         elif booking.puja:
             # Check if puja details are all N/A
@@ -851,7 +847,7 @@ Thank you for booking with us!
         print(f"✅ Booking notifications ENABLED")
         print(f"✅ SEND_WHATSAPP_ON_BOOKING: {settings.SEND_WHATSAPP_ON_BOOKING}")
         print(f"✅ TWILIO_ACCOUNT_SID: {'SET' if settings.TWILIO_ACCOUNT_SID else 'NOT SET'}")
-        print(f"🏛️ Puja: {booking.puja}")
+        print(f"🛕 Puja: {booking.puja}")
         print(f"📋 Plan: {booking.plan}")
 
         # Email notification with enhanced details
