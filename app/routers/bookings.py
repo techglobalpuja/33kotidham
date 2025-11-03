@@ -1,6 +1,7 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query, BackgroundTasks
 from sqlalchemy.orm import Session
 from typing import List, Optional, Any, Dict
+import threading
 from app.database import get_db
 from app import schemas, crud
 from app.auth import get_current_active_user, get_admin_user
@@ -8,6 +9,52 @@ from app.models import User, BookingStatus
 from app.services import create_razorpay_order, calculate_booking_amount, verify_razorpay_signature, NotificationService
 
 router = APIRouter(prefix="/bookings", tags=["bookings"])
+
+
+def send_notification_async(booking_id: int, notification_type: str, db_session=None, **kwargs):
+    """Send notification in background thread without blocking response."""
+    try:
+        from app.database import SessionLocal
+        from app import crud
+        
+        # Create new session for background task
+        if db_session is None:
+            db_session = SessionLocal()
+        
+        booking = crud.BookingCRUD.get_booking(db_session, booking_id)
+        if not booking:
+            return
+        
+        user = booking.user
+        user_email = user.email or ""
+        user_phone = booking.whatsapp_number or booking.mobile_number or getattr(user, 'mobile', None) or ""
+        
+        if not user_email and not user_phone:
+            return
+        
+        if notification_type == "pending":
+            NotificationService.send_booking_pending_notification(
+                booking,
+                user_email=user_email,
+                user_phone=user_phone
+            )
+        elif notification_type == "confirmed":
+            NotificationService.send_booking_confirmed_notification(
+                booking,
+                user_email=user_email,
+                user_phone=user_phone
+            )
+        elif notification_type == "completed":
+            NotificationService.send_booking_completed_notification(
+                booking,
+                user_email=user_email,
+                user_phone=user_phone
+            )
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"❌ Background notification error: {str(e)}", exc_info=True)
+
 
 @router.get("/puja", response_model=List[schemas.BookingResponse])
 def get_puja_bookings(
@@ -142,40 +189,6 @@ def create_booking(
     
     created_booking = crud.BookingCRUD.create_booking(db, booking, current_user.id)
     
-    # Send notification when booking is created (PENDING status)
-    print("\n>>> TEMPLE BOOKING CREATED - checking if should notify...")
-    try:
-        import logging
-        logger = logging.getLogger(__name__)
-        
-        user_email = current_user.email or ""
-        user_phone = booking.whatsapp_number or booking.mobile_number or getattr(current_user, 'mobile', None) or ""
-        print(f">>> Email: {user_email}, Phone: {user_phone}")
-        logger.info(f"📱 Phone (raw): {user_phone}")
-        logger.info(f"   whatsapp_number: {booking.whatsapp_number}")
-        logger.info(f"   mobile_number: {booking.mobile_number}")
-        logger.info(f"   current_user.mobile: {getattr(current_user, 'mobile', 'N/A')}")
-        logger.info(f"Puja ID: {booking.puja_id}")
-        logger.info(f"Plan ID: {booking.plan_id}")
-        
-        if user_email or user_phone:
-            print(f"\nCALLING NOTIFICATION for phone={user_phone}, email={user_email}")
-            logger.info(f"Attempting to send notification...")
-            result = NotificationService.send_booking_pending_notification(
-                created_booking,
-                user_email=user_email,
-                user_phone=user_phone
-            )
-            print(f"NOTIFICATION RESULT: {result}\n")
-            logger.info(f"Notification result: {result}")
-        else:
-            print(f"\nNO PHONE/EMAIL AVAILABLE\n")
-            logger.warning(f"No email or phone number available")
-    except Exception as e:
-        logger.error(f"❌ Notification error: {str(e)}", exc_info=True)
-        # Don't fail the booking creation if notification fails
-        pass
-    
     return created_booking
 
 
@@ -262,31 +275,13 @@ def confirm_booking(
     booking_update = schemas.BookingUpdate(status=BookingStatus.CONFIRMED)
     updated_booking = crud.BookingCRUD.update_booking(db, booking_id, booking_update)
     
-    # Send confirmation notification to user
-    try:
-        import logging
-        logger = logging.getLogger(__name__)
-        user = booking.user
-        user_email = user.email or ""
-        user_phone = booking.whatsapp_number or booking.mobile_number or user.mobile
-        logger.info(f"📬 Sending confirmation notification for booking {booking_id}")
-        logger.info(f"   Email: {user_email}, Phone: {user_phone}")
-        if user_email or user_phone:
-            result = NotificationService.send_booking_confirmed_notification(
-                updated_booking,
-                user_email=user_email,
-                user_phone=user_phone
-            )
-            logger.info(f"✅ Confirmation notification sent: {result}")
-        else:
-            logger.warning(f"⚠️  No email or phone for booking {booking_id}")
-    except Exception as e:
-        import logging
-        logger = logging.getLogger(__name__)
-        logger.error(f"❌ Confirmation notification error: {str(e)}", exc_info=True)
-    except Exception as e:
-        # Log error but don't fail the confirmation
-        print(f"Confirmation notification error: {str(e)}")
+    # Send confirmation notification in background thread (non-blocking)
+    notification_thread = threading.Thread(
+        target=send_notification_async,
+        args=(booking_id, "confirmed"),
+        daemon=True
+    )
+    notification_thread.start()
     
     return {"message": "Booking confirmed successfully"}
 
@@ -317,6 +312,14 @@ def complete_booking(
         puja_link=puja_link
     )
     crud.BookingCRUD.update_booking(db, booking_id, booking_update)
+    
+    # Send completion notification in background thread (non-blocking)
+    notification_thread = threading.Thread(
+        target=send_notification_async,
+        args=(booking_id, "completed"),
+        daemon=True
+    )
+    notification_thread.start()
     
     return {"message": "Booking completed successfully"}
 
@@ -390,58 +393,25 @@ def create_booking_with_razorpay(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail=f"Note is required for chadawa: {chadawa.name}"
                 )
+    
     # Persist booking first (status PENDING), then calculate authoritative amount server-side
     db_booking = crud.BookingCRUD.create_booking(db, booking, current_user.id)
     
-    # Send notification when booking is created (PENDING status)
-    import logging
-    logger = logging.getLogger(__name__)
-    logger.info(f"\n{'='*70}")
-    logger.info(f"📬 BOOKING CREATED - Sending notifications")
-    logger.info(f"{'='*70}")
-    logger.info(f"Booking ID: {db_booking.id}")
-    logger.info(f"Booking Status: {db_booking.status}")
-    logger.info(f"User ID: {current_user.id}")
-    
-    try:
-        user_email = current_user.email or ""
-        user_phone = booking.whatsapp_number or booking.mobile_number or getattr(current_user, 'mobile', None) or ""
-        logger.info(f"� Email: {user_email}")
-        logger.info(f"📱 Phone: {user_phone}")
-        logger.info(f"Puja ID: {booking.puja_id}")
-        logger.info(f"Plan ID: {booking.plan_id}")
-        
-        if user_email or user_phone:
-            logger.info(f"✉️ Attempting to send notification...")
-            result = NotificationService.send_booking_pending_notification(
-                db_booking,
-                user_email=user_email,
-                user_phone=user_phone
-            )
-            logger.info(f"✅ Notification result: {result}")
-        else:
-            logger.warning(f"⚠️ No email or phone number available")
-            logger.warning(f"   current_user.email: {current_user.email}")
-            logger.warning(f"   booking.whatsapp_number: {booking.whatsapp_number}")
-            logger.warning(f"   booking.mobile_number: {booking.mobile_number}")
-    except Exception as e:
-        logger.error(f"❌ Notification ERROR: {str(e)}", exc_info=True)
-    
-    logger.info(f"{'='*70}\n")
-    
     # Calculate authoritative amount server-side using the persisted booking (safer)
     amount = calculate_booking_amount(db, db_booking)
+    
     # Create Razorpay order
     razorpay_order = create_razorpay_order(float(amount), db_booking.id)
     payment = schemas.PaymentCreate(booking_id=db_booking.id, amount=amount)
     db_payment = crud.PaymentCRUD.create_payment(db, payment, razorpay_order["id"])
-    # Return booking and Razorpay order info
-    # Build a proper response object so Pydantic can serialize the booking ORM object
+    
+    # Return booking and Razorpay order info IMMEDIATELY without waiting for notifications
     response = schemas.RazorpayBookingResponse(
         booking=schemas.BookingResponse.from_orm(db_booking),
         razorpay_order_id=razorpay_order["id"],
         razorpay_order=razorpay_order,
     )
+    
     return response
 
 
@@ -478,5 +448,13 @@ def verify_payment(
     # Update booking status if needed
     booking_update = schemas.BookingUpdate(status=BookingStatus.CONFIRMED)
     crud.BookingCRUD.update_booking(db, booking_id, booking_update)
+
+    # Send confirmation notification in background thread (non-blocking)
+    notification_thread = threading.Thread(
+        target=send_notification_async,
+        args=(booking_id, "confirmed"),
+        daemon=True
+    )
+    notification_thread.start()
 
     return {"message": "Payment verified and booking confirmed", "payment_id": payment.id}

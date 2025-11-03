@@ -7,7 +7,7 @@ import json
 BASE_URL = "http://127.0.0.1:8000/api/v1"
 
 # Your authorization token
-TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI4OTYyNTA3NDg2IiwiZXhwIjoxNzYyMDk2MTE4fQ.4e-YoZE5tWOevKg7s3-z5qPDdrmoVVofGxbZXsjO8Mo"
+TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI3MDAwMTE4NjUxIiwicm9sZSI6InN1cGVyX2FkbWluIiwiZXhwIjoxNzYyMjIwMDU5fQ.WingG8r6NbJgHeh1mZ662NQ5YaZH82u2BEq1hQz9n9Q"
 
 headers = {
     "Authorization": f"Bearer {TOKEN}",
@@ -17,8 +17,8 @@ headers = {
 
 # Your booking details
 booking_data = {
-    "puja_id": 0,
-    "temple_id": 12,
+    "puja_id": 72,
+    "temple_id": 0,
     "plan_id": 7,
     "booking_date": "2025-11-02T06:31:51.169Z",
     "mobile_number": "8962507486",
