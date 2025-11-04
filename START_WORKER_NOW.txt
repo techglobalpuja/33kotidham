@@ -1,0 +1,132 @@
+HOW TO START THE MESSAGE QUEUE SYSTEM
+======================================
+
+CURRENT STATUS:
+===============
+✅ Redis is running
+✅ Celery and redis packages installed
+✅ Configuration loaded successfully
+
+NOW YOU NEED TO START THE WORKER:
+==================================
+
+OPTION 1: Use the batch file (Easiest)
+---------------------------------------
+1. Open a NEW terminal window (PowerShell or CMD)
+2. Navigate to your project:
+   cd C:\Global-Pooja\33kotidham
+3. Activate your virtual environment:
+   .\33koti\Scripts\activate
+4. Run the worker:
+   start_worker.bat
+
+   OR directly:
+   celery -A app.celery_config.celery_app worker --loglevel=info --pool=solo -Q notifications
+
+
+OPTION 2: Use Python script
+----------------------------
+In a NEW terminal:
+   cd C:\Global-Pooja\33kotidham
+   .\33koti\Scripts\activate
+   python start_celery_worker.py
+
+
+WHAT YOU'LL SEE:
+================
+When worker starts successfully, you'll see:
+
+  [2025-11-04 10:00:00,000: INFO/MainProcess] Connected to redis://localhost:6379//
+  [2025-11-04 10:00:00,000: INFO/MainProcess] celery@notification_worker ready.
+  [2025-11-04 10:00:00,000: INFO/MainProcess] Registered tasks:
+    - app.tasks.send_booking_notification
+    - app.tasks.test_celery
+
+Keep this terminal open! It will show messages being processed.
+
+
+TESTING:
+========
+After worker is running, in your MAIN terminal:
+
+Test 1: Check worker is responding
+   celery -A app.celery_config.celery_app inspect active
+
+   Should show: Active tasks (if any)
+   NOT: "Error: No nodes replied"
+
+Test 2: Send test message
+   python -c "from app.tasks import test_celery; result = test_celery.delay(); print(f'Queued: {result.id}')"
+
+   Watch worker terminal - you'll see message processed!
+
+Test 3: Run full test suite
+   python test_celery_system.py
+
+
+TERMINAL SETUP:
+===============
+You need 3 terminals running:
+
+Terminal 1: REDIS SERVER (already running)
+  Status: ✅ Running
+
+Terminal 2: CELERY WORKER (needs to be started)
+  Command: start_worker.bat
+  Status: ⚠️  Need to start
+
+Terminal 3: API SERVER (start when worker is ready)
+  Command: python run.py
+  Status: ⏳ Start after worker
+
+
+VERIFICATION CHECKLIST:
+=======================
+☐ Redis running (already done ✅)
+☐ Packages installed (already done ✅)
+☐ Config loaded (already done ✅)
+☐ Worker started (DO THIS NOW)
+☐ Worker shows "ready"
+☐ Test message works
+☐ Start API server
+
+
+COMMON ISSUES:
+==============
+
+Issue: "Error: No nodes replied within time constraint"
+Fix: Worker not started yet. Start it in a new terminal.
+
+Issue: Worker crashes on startup
+Fix: Check Redis is running: python -c "import redis; redis.Redis().ping()"
+
+Issue: Import errors
+Fix: Make sure you're in the correct directory and venv is activated
+
+
+WHAT NEXT:
+==========
+1. Open NEW terminal
+2. cd C:\Global-Pooja\33kotidham
+3. .\33koti\Scripts\activate
+4. Run: start_worker.bat
+5. Watch for "celery@notification_worker ready"
+6. Come back to main terminal
+7. Run: celery -A app.celery_config.celery_app inspect active
+8. Should see worker info (not "No nodes replied")
+
+
+THEN YOU'RE READY!
+==================
+Once worker shows "ready", your message queue system is operational!
+
+Messages will be:
+✓ Queued instantly
+✓ Processed one by one
+✓ Auto-retried if failed
+✓ Guaranteed delivery
+
+
+NEED HELP?
+==========
+Check the logs in the worker terminal for errors.

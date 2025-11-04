@@ -1,59 +1,23 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Query, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 from typing import List, Optional, Any, Dict
-import threading
+import logging
 from app.database import get_db
 from app import schemas, crud
 from app.auth import get_current_active_user, get_admin_user
 from app.models import User, BookingStatus
 from app.services import create_razorpay_order, calculate_booking_amount, verify_razorpay_signature, NotificationService
 
+# Import Celery task for queued message delivery
+try:
+    from app.tasks import send_booking_notification
+    CELERY_AVAILABLE = True
+except ImportError:
+    CELERY_AVAILABLE = False
+    logging.warning("Celery not available - notifications will be skipped")
+
 router = APIRouter(prefix="/bookings", tags=["bookings"])
-
-
-def send_notification_async(booking_id: int, notification_type: str, db_session=None, **kwargs):
-    """Send notification in background thread without blocking response."""
-    try:
-        from app.database import SessionLocal
-        from app import crud
-        
-        # Create new session for background task
-        if db_session is None:
-            db_session = SessionLocal()
-        
-        booking = crud.BookingCRUD.get_booking(db_session, booking_id)
-        if not booking:
-            return
-        
-        user = booking.user
-        user_email = user.email or ""
-        user_phone = booking.whatsapp_number or booking.mobile_number or getattr(user, 'mobile', None) or ""
-        
-        if not user_email and not user_phone:
-            return
-        
-        if notification_type == "pending":
-            NotificationService.send_booking_pending_notification(
-                booking,
-                user_email=user_email,
-                user_phone=user_phone
-            )
-        elif notification_type == "confirmed":
-            NotificationService.send_booking_confirmed_notification(
-                booking,
-                user_email=user_email,
-                user_phone=user_phone
-            )
-        elif notification_type == "completed":
-            NotificationService.send_booking_completed_notification(
-                booking,
-                user_email=user_email,
-                user_phone=user_phone
-            )
-    except Exception as e:
-        import logging
-        logger = logging.getLogger(__name__)
-        logger.error(f"❌ Background notification error: {str(e)}", exc_info=True)
+logger = logging.getLogger(__name__)
 
 
 @router.get("/puja", response_model=List[schemas.BookingResponse])
@@ -275,13 +239,12 @@ def confirm_booking(
     booking_update = schemas.BookingUpdate(status=BookingStatus.CONFIRMED)
     updated_booking = crud.BookingCRUD.update_booking(db, booking_id, booking_update)
     
-    # Send confirmation notification in background thread (non-blocking)
-    notification_thread = threading.Thread(
-        target=send_notification_async,
-        args=(booking_id, "confirmed"),
-        daemon=True
-    )
-    notification_thread.start()
+    # Queue confirmation notification for delivery (non-blocking, reliable)
+    if CELERY_AVAILABLE:
+        send_booking_notification.delay(booking_id, "confirmed")
+        logger.info(f"📬 Queued confirmation notification for booking {booking_id}")
+    else:
+        logger.warning(f"⚠️ Celery not available - notification not queued for booking {booking_id}")
     
     return {"message": "Booking confirmed successfully"}
 
@@ -313,13 +276,12 @@ def complete_booking(
     )
     crud.BookingCRUD.update_booking(db, booking_id, booking_update)
     
-    # Send completion notification in background thread (non-blocking)
-    notification_thread = threading.Thread(
-        target=send_notification_async,
-        args=(booking_id, "completed"),
-        daemon=True
-    )
-    notification_thread.start()
+    # Queue completion notification for delivery (non-blocking, reliable)
+    if CELERY_AVAILABLE:
+        send_booking_notification.delay(booking_id, "completed")
+        logger.info(f"📬 Queued completion notification for booking {booking_id}")
+    else:
+        logger.warning(f"⚠️ Celery not available - notification not queued for booking {booking_id}")
     
     return {"message": "Booking completed successfully"}
 
@@ -449,12 +411,12 @@ def verify_payment(
     booking_update = schemas.BookingUpdate(status=BookingStatus.CONFIRMED)
     crud.BookingCRUD.update_booking(db, booking_id, booking_update)
 
-    # Send confirmation notification in background thread (non-blocking)
-    notification_thread = threading.Thread(
-        target=send_notification_async,
-        args=(booking_id, "confirmed"),
-        daemon=True
-    )
-    notification_thread.start()
+    # Queue confirmation notification for delivery (non-blocking, reliable)
+    # This ensures message is delivered even after response is sent
+    if CELERY_AVAILABLE:
+        send_booking_notification.delay(booking_id, "confirmed")
+        logger.info(f"📬 Queued confirmation notification for booking {booking_id} after payment verification")
+    else:
+        logger.warning(f"⚠️ Celery not available - notification not queued for booking {booking_id}")
 
     return {"message": "Payment verified and booking confirmed", "payment_id": payment.id}
