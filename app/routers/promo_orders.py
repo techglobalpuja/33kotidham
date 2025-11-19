@@ -258,6 +258,7 @@ def create_order(
     # Calculate subtotal and validate products
     subtotal = Decimal(0)
     order_items_data = []
+    all_products_support_cod = True
     
     for item in order.items:
         product = db.query(models.Product).filter(
@@ -277,6 +278,10 @@ def create_order(
                 detail=f"Insufficient stock for {product.name}. Available: {product.stock_quantity}"
             )
         
+        # Check if COD is supported for all products
+        if not product.allow_cod:
+            all_products_support_cod = False
+        
         item_total = product.selling_price * item.quantity
         subtotal += item_total
         
@@ -287,6 +292,13 @@ def create_order(
             "unit_price": product.selling_price,
             "total_price": item_total
         })
+    
+    # Validate payment method
+    if order.payment_method == "cod" and not all_products_support_cod:
+        raise HTTPException(
+            status_code=400,
+            detail="Cash on Delivery is not available for one or more products in your cart"
+        )
     
     # Apply promo code if provided
     discount_amount = Decimal(0)
@@ -326,6 +338,10 @@ def create_order(
     
     total_amount = subtotal - discount_amount + shipping_charges + tax_amount
     
+    # Set payment status based on payment method
+    payment_status = "pending" if order.payment_method == "online" else "pending"
+    order_status = "pending"
+    
     # Create order
     db_order = models.Order(
         user_id=current_user.id,
@@ -343,8 +359,9 @@ def create_order(
         shipping_state=order.shipping_state,
         shipping_pincode=order.shipping_pincode,
         notes=order.notes,
-        status="pending",
-        payment_status="pending"
+        payment_method=order.payment_method,
+        status=order_status,
+        payment_status=payment_status
     )
     db.add(db_order)
     db.flush()

@@ -465,6 +465,9 @@ class Product(Base):
     is_featured = Column(Boolean, default=False)
     is_active = Column(Boolean, default=True, nullable=False)
     
+    # Payment options
+    allow_cod = Column(Boolean, default=False, nullable=False)  # Cash on Delivery
+    
     # Sales tracking
     total_sales = Column(Integer, default=0, nullable=False)
     
@@ -561,6 +564,7 @@ class Order(Base):
     # Order status
     status = Column(String(20), default="pending", nullable=False)  # pending, confirmed, shipped, delivered, cancelled
     payment_status = Column(String(20), default="pending", nullable=False)
+    payment_method = Column(String(20), nullable=False)  # online, cod (cash on delivery)
     
     # Tracking
     tracking_number = Column(String(100), nullable=True)

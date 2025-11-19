@@ -544,6 +544,7 @@ class ProductBase(BaseModel):
     tags: Optional[str] = None
     is_featured: Optional[bool] = False
     is_active: Optional[bool] = True
+    allow_cod: Optional[bool] = False
 
 
 class ProductCreate(ProductBase):
@@ -575,6 +576,7 @@ class ProductUpdate(BaseModel):
     tags: Optional[str] = None
     is_featured: Optional[bool] = None
     is_active: Optional[bool] = None
+    allow_cod: Optional[bool] = None
 
 
 class ProductResponse(ProductBase, BaseResponse):
@@ -694,6 +696,13 @@ class OrderBase(BaseModel):
 class OrderCreate(OrderBase):
     items: List[OrderItemCreate]
     promo_code: Optional[str] = None
+    payment_method: str = "online"  # online or cod
+    
+    @validator('payment_method')
+    def validate_payment_method(cls, v):
+        if v not in ["online", "cod"]:
+            raise ValueError('payment_method must be "online" or "cod"')
+        return v
 
 
 class OrderUpdate(BaseModel):
@@ -716,6 +725,7 @@ class OrderResponse(OrderBase, BaseResponse):
     total_amount: Decimal
     status: str
     payment_status: str
+    payment_method: str
     tracking_number: Optional[str] = None
     created_at: datetime
     updated_at: datetime
