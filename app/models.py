@@ -417,3 +417,208 @@ class temple(Base):
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
 
+# ==================== PRODUCT MODELS ====================
+
+class ProductCategory(Base):
+    __tablename__ = "product_categories"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(100), nullable=False, unique=True)  # e.g., Mala, Portraits, Idols, Incense
+    description = Column(Text, nullable=True)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    # Relationships
+    products = relationship("Product", back_populates="category")
+
+
+class Product(Base):
+    __tablename__ = "products"
+
+    id = Column(Integer, primary_key=True, index=True)
+    category_id = Column(Integer, ForeignKey("product_categories.id"), nullable=True)
+    
+    # Basic details
+    name = Column(String(200), nullable=False)
+    slug = Column(String(255), nullable=False, unique=True)
+    short_description = Column(String(500), nullable=True)
+    long_description = Column(Text, nullable=True)
+    
+    # Pricing
+    mrp = Column(Numeric(10, 2), nullable=False)  # Maximum Retail Price
+    selling_price = Column(Numeric(10, 2), nullable=False)  # Actual selling price
+    discount_percentage = Column(Numeric(5, 2), nullable=True)  # Calculated or manual
+    
+    # Inventory
+    stock_quantity = Column(Integer, default=0, nullable=False)
+    sku = Column(String(100), nullable=True, unique=True)  # Stock Keeping Unit
+    
+    # Product specifications
+    weight = Column(Numeric(10, 2), nullable=True)  # in grams
+    dimensions = Column(String(100), nullable=True)  # e.g., "10x5x2 cm"
+    material = Column(String(100), nullable=True)  # e.g., "Brass", "Wood", "Copper"
+    
+    # SEO and visibility
+    meta_description = Column(String(160), nullable=True)
+    tags = Column(String(500), nullable=True)  # Comma-separated tags
+    is_featured = Column(Boolean, default=False)
+    is_active = Column(Boolean, default=True, nullable=False)
+    
+    # Sales tracking
+    total_sales = Column(Integer, default=0, nullable=False)
+    
+    # Timestamps
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    # Relationships
+    category = relationship("ProductCategory", back_populates="products")
+    images = relationship(
+        "ProductImage",
+        back_populates="product",
+        cascade="all, delete-orphan",
+        passive_deletes=True
+    )
+    order_items = relationship("OrderItem", back_populates="product")
+
+
+class ProductImage(Base):
+    __tablename__ = "product_images"
+
+    id = Column(Integer, primary_key=True, index=True)
+    product_id = Column(Integer, ForeignKey("products.id", ondelete="CASCADE"), nullable=False)
+    image_url = Column(Text, nullable=False)
+    is_primary = Column(Boolean, default=False)  # Main product image
+    display_order = Column(Integer, default=0)  # Order of display
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    # Relationships
+    product = relationship("Product", back_populates="images")
+
+
+class PromoCode(Base):
+    __tablename__ = "promo_codes"
+
+    id = Column(Integer, primary_key=True, index=True)
+    code = Column(String(50), nullable=False, unique=True)
+    description = Column(Text, nullable=True)
+    
+    # Discount details
+    discount_type = Column(String(20), nullable=False)  # "percentage" or "fixed"
+    discount_value = Column(Numeric(10, 2), nullable=False)  # percentage or amount
+    
+    # Usage limits
+    max_uses = Column(Integer, nullable=True)  # Total times code can be used
+    max_uses_per_user = Column(Integer, default=1)
+    current_uses = Column(Integer, default=0)
+    
+    # Validity
+    valid_from = Column(DateTime(timezone=True), nullable=True)
+    valid_until = Column(DateTime(timezone=True), nullable=True)
+    
+    # Conditions
+    min_order_amount = Column(Numeric(10, 2), nullable=True)
+    max_discount_amount = Column(Numeric(10, 2), nullable=True)  # Cap for percentage discounts
+    
+    # Applicability
+    applicable_to_products = Column(Boolean, default=True)
+    applicable_to_pujas = Column(Boolean, default=False)
+    
+    is_active = Column(Boolean, default=True, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    # Relationships
+    orders = relationship("Order", back_populates="promo_code")
+
+
+class Order(Base):
+    __tablename__ = "orders"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    promo_code_id = Column(Integer, ForeignKey("promo_codes.id"), nullable=True)
+    
+    # Order details
+    order_number = Column(String(50), nullable=False, unique=True)
+    
+    # Pricing
+    subtotal = Column(Numeric(10, 2), nullable=False)
+    discount_amount = Column(Numeric(10, 2), default=0)
+    shipping_charges = Column(Numeric(10, 2), default=0)
+    tax_amount = Column(Numeric(10, 2), default=0)
+    total_amount = Column(Numeric(10, 2), nullable=False)
+    
+    # Delivery details
+    shipping_name = Column(String(100), nullable=False)
+    shipping_mobile = Column(String(15), nullable=False)
+    shipping_address = Column(Text, nullable=False)
+    shipping_city = Column(String(100), nullable=False)
+    shipping_state = Column(String(100), nullable=False)
+    shipping_pincode = Column(String(10), nullable=False)
+    
+    # Order status
+    status = Column(String(20), default="pending", nullable=False)  # pending, confirmed, shipped, delivered, cancelled
+    payment_status = Column(String(20), default="pending", nullable=False)
+    
+    # Tracking
+    tracking_number = Column(String(100), nullable=True)
+    notes = Column(Text, nullable=True)
+    
+    # Timestamps
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    shipped_at = Column(DateTime(timezone=True), nullable=True)
+    delivered_at = Column(DateTime(timezone=True), nullable=True)
+
+    # Relationships
+    user = relationship("User")
+    promo_code = relationship("PromoCode", back_populates="orders")
+    order_items = relationship("OrderItem", back_populates="order", cascade="all, delete-orphan")
+    order_payment = relationship("OrderPayment", back_populates="order", uselist=False)
+
+
+class OrderItem(Base):
+    __tablename__ = "order_items"
+
+    id = Column(Integer, primary_key=True, index=True)
+    order_id = Column(Integer, ForeignKey("orders.id", ondelete="CASCADE"), nullable=False)
+    product_id = Column(Integer, ForeignKey("products.id"), nullable=False)
+    
+    # Product details at time of order
+    product_name = Column(String(200), nullable=False)
+    quantity = Column(Integer, nullable=False)
+    unit_price = Column(Numeric(10, 2), nullable=False)
+    total_price = Column(Numeric(10, 2), nullable=False)
+    
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    # Relationships
+    order = relationship("Order", back_populates="order_items")
+    product = relationship("Product", back_populates="order_items")
+
+
+class OrderPayment(Base):
+    __tablename__ = "order_payments"
+
+    id = Column(Integer, primary_key=True, index=True)
+    order_id = Column(Integer, ForeignKey("orders.id", ondelete="CASCADE"), nullable=False)
+    
+    # Payment gateway details
+    razorpay_order_id = Column(String(100), nullable=False)
+    razorpay_payment_id = Column(String(100), nullable=True)
+    razorpay_signature = Column(String(255), nullable=True)
+    
+    amount = Column(Numeric(10, 2), nullable=False)
+    currency = Column(String(10), default="INR")
+    status = Column(String(20), default=PaymentStatus.CREATED.value, nullable=False)
+    payment_method = Column(String(50), nullable=True)  # card, netbanking, upi, wallet
+    
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    # Relationships
+    order = relationship("Order", back_populates="order_payment")
+
+

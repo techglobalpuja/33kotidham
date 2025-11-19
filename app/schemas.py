@@ -484,6 +484,276 @@ class BlogListResponse(BaseResponse):
     categories: List[CategoryResponse] = []  # Add categories list to response
 
 
+# ==================== PRODUCT SCHEMAS ====================
+
+# Product Category schemas
+class ProductCategoryBase(BaseModel):
+    name: str
+    description: Optional[str] = None
+    is_active: Optional[bool] = True
+
+
+class ProductCategoryCreate(ProductCategoryBase):
+    pass
+
+
+class ProductCategoryUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    is_active: Optional[bool] = None
+
+
+class ProductCategoryResponse(ProductCategoryBase, BaseResponse):
+    id: int
+    created_at: datetime
+    updated_at: datetime
+
+
+# Product Image schemas
+class ProductImageBase(BaseModel):
+    image_url: str
+    is_primary: Optional[bool] = False
+    display_order: Optional[int] = 0
+
+
+class ProductImageCreate(ProductImageBase):
+    pass
+
+
+class ProductImageResponse(ProductImageBase, BaseResponse):
+    id: int
+    product_id: int
+    created_at: datetime
+
+
+# Product schemas
+class ProductBase(BaseModel):
+    name: str
+    slug: str
+    short_description: Optional[str] = None
+    long_description: Optional[str] = None
+    mrp: Decimal
+    selling_price: Decimal
+    discount_percentage: Optional[Decimal] = None
+    stock_quantity: Optional[int] = 0
+    sku: Optional[str] = None
+    weight: Optional[Decimal] = None
+    dimensions: Optional[str] = None
+    material: Optional[str] = None
+    meta_description: Optional[str] = None
+    tags: Optional[str] = None
+    is_featured: Optional[bool] = False
+    is_active: Optional[bool] = True
+
+
+class ProductCreate(ProductBase):
+    category_id: Optional[int] = None
+    image_urls: Optional[List[str]] = None  # List of image URLs to add
+    
+    @validator('category_id')
+    def validate_category_id(cls, v):
+        if v == 0:
+            return None
+        return v
+
+
+class ProductUpdate(BaseModel):
+    name: Optional[str] = None
+    slug: Optional[str] = None
+    category_id: Optional[int] = None
+    short_description: Optional[str] = None
+    long_description: Optional[str] = None
+    mrp: Optional[Decimal] = None
+    selling_price: Optional[Decimal] = None
+    discount_percentage: Optional[Decimal] = None
+    stock_quantity: Optional[int] = None
+    sku: Optional[str] = None
+    weight: Optional[Decimal] = None
+    dimensions: Optional[str] = None
+    material: Optional[str] = None
+    meta_description: Optional[str] = None
+    tags: Optional[str] = None
+    is_featured: Optional[bool] = None
+    is_active: Optional[bool] = None
+
+
+class ProductResponse(ProductBase, BaseResponse):
+    id: int
+    category_id: Optional[int] = None
+    category: Optional[ProductCategoryResponse] = None
+    images: List[ProductImageResponse] = []
+    total_sales: int
+    created_at: datetime
+    updated_at: datetime
+
+
+class ProductListResponse(BaseResponse):
+    id: int
+    name: str
+    slug: str
+    short_description: Optional[str] = None
+    mrp: Decimal
+    selling_price: Decimal
+    discount_percentage: Optional[Decimal] = None
+    stock_quantity: int
+    is_featured: bool
+    is_active: bool
+    category: Optional[ProductCategoryResponse] = None
+    images: List[ProductImageResponse] = []
+    created_at: datetime
+
+
+# Promo Code schemas
+class PromoCodeBase(BaseModel):
+    code: str
+    description: Optional[str] = None
+    discount_type: str  # "percentage" or "fixed"
+    discount_value: Decimal
+    max_uses: Optional[int] = None
+    max_uses_per_user: Optional[int] = 1
+    valid_from: Optional[datetime] = None
+    valid_until: Optional[datetime] = None
+    min_order_amount: Optional[Decimal] = None
+    max_discount_amount: Optional[Decimal] = None
+    applicable_to_products: Optional[bool] = True
+    applicable_to_pujas: Optional[bool] = False
+    is_active: Optional[bool] = True
+
+
+class PromoCodeCreate(PromoCodeBase):
+    pass
+
+
+class PromoCodeUpdate(BaseModel):
+    code: Optional[str] = None
+    description: Optional[str] = None
+    discount_type: Optional[str] = None
+    discount_value: Optional[Decimal] = None
+    max_uses: Optional[int] = None
+    max_uses_per_user: Optional[int] = None
+    valid_from: Optional[datetime] = None
+    valid_until: Optional[datetime] = None
+    min_order_amount: Optional[Decimal] = None
+    max_discount_amount: Optional[Decimal] = None
+    applicable_to_products: Optional[bool] = None
+    applicable_to_pujas: Optional[bool] = None
+    is_active: Optional[bool] = None
+
+
+class PromoCodeResponse(PromoCodeBase, BaseResponse):
+    id: int
+    current_uses: int
+    created_at: datetime
+    updated_at: datetime
+
+
+class PromoCodeValidate(BaseModel):
+    code: str
+    order_amount: Decimal
+    is_product_order: Optional[bool] = True
+
+
+class PromoCodeValidateResponse(BaseModel):
+    valid: bool
+    message: str
+    discount_amount: Optional[Decimal] = None
+    final_amount: Optional[Decimal] = None
+
+
+# Order schemas
+class OrderItemBase(BaseModel):
+    product_id: int
+    quantity: int
+
+
+class OrderItemCreate(OrderItemBase):
+    pass
+
+
+class OrderItemResponse(BaseResponse):
+    id: int
+    order_id: int
+    product_id: int
+    product_name: str
+    quantity: int
+    unit_price: Decimal
+    total_price: Decimal
+    created_at: datetime
+
+
+class OrderBase(BaseModel):
+    shipping_name: str
+    shipping_mobile: str
+    shipping_address: str
+    shipping_city: str
+    shipping_state: str
+    shipping_pincode: str
+    notes: Optional[str] = None
+
+
+class OrderCreate(OrderBase):
+    items: List[OrderItemCreate]
+    promo_code: Optional[str] = None
+
+
+class OrderUpdate(BaseModel):
+    status: Optional[str] = None
+    payment_status: Optional[str] = None
+    tracking_number: Optional[str] = None
+    notes: Optional[str] = None
+    shipped_at: Optional[datetime] = None
+    delivered_at: Optional[datetime] = None
+
+
+class OrderResponse(OrderBase, BaseResponse):
+    id: int
+    user_id: int
+    order_number: str
+    subtotal: Decimal
+    discount_amount: Decimal
+    shipping_charges: Decimal
+    tax_amount: Decimal
+    total_amount: Decimal
+    status: str
+    payment_status: str
+    tracking_number: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
+    shipped_at: Optional[datetime] = None
+    delivered_at: Optional[datetime] = None
+    promo_code: Optional[PromoCodeResponse] = None
+    order_items: List[OrderItemResponse] = []
+
+
+class OrderListResponse(BaseResponse):
+    id: int
+    user_id: int
+    order_number: str
+    total_amount: Decimal
+    status: str
+    payment_status: str
+    created_at: datetime
+
+
+# Order Payment schemas
+class OrderPaymentCreate(BaseModel):
+    order_id: int
+    amount: Decimal
+
+
+class OrderPaymentResponse(BaseResponse):
+    id: int
+    order_id: int
+    razorpay_order_id: str
+    razorpay_payment_id: Optional[str] = None
+    amount: Decimal
+    currency: str
+    status: str
+    payment_method: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
+
+
 # Resolve forward references for Pydantic models that reference each other
 BookingResponse.update_forward_refs()
 PujaResponse.update_forward_refs()
