@@ -922,32 +922,10 @@ Best regards,
                 
                 whatsapp_body = NotificationService.format_booking_details_whatsapp(booking)
                 
-                # Get puja image URL for WhatsApp media attachment
-                # NOTE: WhatsApp only supports: jpeg, jpg, png, gif, bmp
-                # It does NOT support: webp, svg, etc.
-                media_url = None
-                default_fallback_image = "https://api.33kotidham.in/uploads/images/b4bd9c33-d6e3-4069-b436-ef8e4c5cfaa0.png"
-                
-                try:
-                    if booking.puja and booking.puja.images:
-                        img_url = booking.puja.images[0].image_url if booking.puja.images else ""
-                        if img_url:
-                            normalized_url = NotificationService._normalize_image_url(img_url)
-                            # Check if URL has supported image format
-                            supported_formats = ['.jpg', '.jpeg', '.png', '.gif', '.bmp']
-                            if any(fmt in normalized_url.lower() for fmt in supported_formats):
-                                media_url = normalized_url
-                                print(f"📸 Image URL (supported format): {media_url}")
-                            else:
-                                # Use default fallback image for unsupported formats like .webp
-                                print(f"⚠️ Image format not supported by WhatsApp: {normalized_url}")
-                                print(f"   WhatsApp only supports: {', '.join(supported_formats)}")
-                                print(f"   📸 Using fallback image instead")
-                                media_url = default_fallback_image
-                except Exception as img_err:
-                    print(f"⚠️ Could not extract image: {img_err}")
-                    print(f"   📸 Using fallback image instead")
-                    media_url = default_fallback_image
+                # ALWAYS use this specific PNG image for WhatsApp
+                # This image is guaranteed to work with WhatsApp (PNG format, publicly accessible)
+                media_url = "https://api.33kotidham.in/uploads/images/b4bd9c33-d6e3-4069-b436-ef8e4c5cfaa0.png"
+                print(f"📸 Using verified WhatsApp-compatible image: {media_url}")
                 
                 print(f"📤 Calling send_whatsapp_notification...")
                 print(f"   Phone: {user_phone}")
