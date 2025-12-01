@@ -63,5 +63,9 @@ class Settings:
     # File Upload
     UPLOAD_DIR: str = "uploads"
     MAX_FILE_SIZE: int = 5 * 1024 * 1024  # 5MB
+    
+    # Shipping Configuration
+    SHIPPING_CHARGE: int = config("SHIPPING_CHARGE", default=50, cast=int)
+    FREE_SHIPPING_THRESHOLD: int = config("FREE_SHIPPING_THRESHOLD", default=500, cast=int)
 
 settings = Settings()

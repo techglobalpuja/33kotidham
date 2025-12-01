@@ -545,6 +545,8 @@ class ProductBase(BaseModel):
     is_featured: Optional[bool] = False
     is_active: Optional[bool] = True
     allow_cod: Optional[bool] = False
+    shipping_charge: Optional[Decimal] = Decimal(0)
+    free_shipping_above: Optional[Decimal] = None
 
 
 class ProductCreate(ProductBase):
@@ -577,6 +579,8 @@ class ProductUpdate(BaseModel):
     is_featured: Optional[bool] = None
     is_active: Optional[bool] = None
     allow_cod: Optional[bool] = None
+    shipping_charge: Optional[Decimal] = None
+    free_shipping_above: Optional[Decimal] = None
 
 
 class ProductResponse(ProductBase, BaseResponse):

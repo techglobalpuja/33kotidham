@@ -468,6 +468,10 @@ class Product(Base):
     # Payment options
     allow_cod = Column(Boolean, default=False, nullable=False)  # Cash on Delivery
     
+    # Shipping
+    shipping_charge = Column(Numeric(10, 2), default=0, nullable=False)  # Per product shipping charge
+    free_shipping_above = Column(Numeric(10, 2), nullable=True)  # Free shipping if order total above this
+    
     # Sales tracking
     total_sales = Column(Integer, default=0, nullable=False)
     

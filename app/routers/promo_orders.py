@@ -4,6 +4,7 @@ from typing import List, Optional
 from app.database import get_db
 from app import schemas, models
 from app.auth import get_admin_user, get_current_active_user
+from app.config import settings
 from decimal import Decimal
 from datetime import datetime
 import secrets
@@ -332,8 +333,26 @@ def create_order(
                 if discount_amount > subtotal:
                     discount_amount = subtotal
     
-    # Calculate shipping and tax (you can customize this logic)
-    shipping_charges = Decimal(50) if subtotal < 500 else Decimal(0)  # Free shipping above ₹500
+    # Calculate shipping charges dynamically per product
+    shipping_charges = Decimal(0)
+    for item in order.items:
+        product = db.query(models.Product).filter(
+            models.Product.id == item.product_id
+        ).first()
+        
+        if product:
+            # Check if product has free shipping threshold
+            if product.free_shipping_above and subtotal >= product.free_shipping_above:
+                # Free shipping if order total exceeds product's threshold
+                continue
+            else:
+                # Add product's shipping charge multiplied by quantity
+                shipping_charges += Decimal(product.shipping_charge) * item.quantity
+    
+    # Fallback to global settings if no product-specific shipping
+    if shipping_charges == Decimal(0):
+        shipping_charges = Decimal(settings.SHIPPING_CHARGE) if subtotal < settings.FREE_SHIPPING_THRESHOLD else Decimal(0)
+    
     tax_amount = Decimal(0)  # Add tax calculation if needed
     
     total_amount = subtotal - discount_amount + shipping_charges + tax_amount
