@@ -926,7 +926,7 @@ Best regards,
                 # NOTE: WhatsApp only supports: jpeg, jpg, png, gif, bmp
                 # It does NOT support: webp, svg, etc.
                 media_url = None
-                default_fallback_image = "https://api.33kotidham.com/uploads/images/b4bd9c33-d6e3-4069-b436-ef8e4c5cfaa0.png"
+                default_fallback_image = "https://api.33kotidham.in/uploads/images/b4bd9c33-d6e3-4069-b436-ef8e4c5cfaa0.png"
                 
                 try:
                     if booking.puja and booking.puja.images:
@@ -954,7 +954,16 @@ Best regards,
                 print(f"   Media URL: {media_url}")
                 print(f"   Message length: {len(whatsapp_body)}")
                 
+                # Try sending with media first
                 whatsapp_sent = NotificationService.send_whatsapp_notification(user_phone, whatsapp_body, media_url=media_url)
+                
+                # If failed and media was included, retry without media
+                if not whatsapp_sent and media_url:
+                    print(f"⚠️ WhatsApp with media failed, retrying WITHOUT media...")
+                    whatsapp_sent = NotificationService.send_whatsapp_notification(user_phone, whatsapp_body, media_url=None)
+                    if whatsapp_sent:
+                        print(f"✅ WhatsApp sent successfully WITHOUT media")
+                
                 print(f"💬 send_whatsapp_notification returned: {whatsapp_sent}")
                 print(f"💬 WhatsApp notification: {'✅ SENT' if whatsapp_sent else '❌ FAILED'}")
                 

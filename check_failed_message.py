@@ -43,7 +43,8 @@ if __name__ == "__main__":
         if message.error_code:
             error_explanations = {
                 "63007": "Recipient not in WhatsApp Sandbox - Send 'join ancient-science' to +14155238886",
-                "63016": "Maximum message size exceeded",
+                "63015": "Media file could not be downloaded or is in unsupported format (e.g., .webp, .svg not supported)",
+                "63016": "Maximum message size exceeded (media file too large)",
                 "21211": "Invalid 'To' phone number",
                 "21408": "Permission to send WhatsApp messages has not been enabled",
                 "21606": "Phone number is not a valid WhatsApp number",
@@ -62,6 +63,28 @@ if __name__ == "__main__":
                 print(f"   2. Send to: +14155238886")
                 print(f"   3. Message: join ancient-science")
                 print(f"   4. Wait for confirmation")
+            elif message.error_code == 63015:
+                print("\n🔧 SOLUTION - MEDIA FILE ISSUE:")
+                print("   WhatsApp could not download or process the image attachment.")
+                print("\n   Common causes:")
+                print("   ❌ Image format not supported (WhatsApp only supports: jpg, jpeg, png, gif)")
+                print("   ❌ .webp or .svg format used (NOT supported)")
+                print("   ❌ Image URL not publicly accessible")
+                print("   ❌ Image requires authentication")
+                print("   ❌ SSL certificate issues")
+                print("   ❌ Image server blocks Twilio's servers")
+                print("\n   ✅ Fixes:")
+                print("   1. Use only: .jpg, .jpeg, .png, or .gif images")
+                print("   2. Ensure image URL is publicly accessible")
+                print("   3. Test image URL in browser: can you access it without login?")
+                print("   4. Image must be HTTPS (not HTTP)")
+                print("   5. Or send message WITHOUT media attachment")
+            elif message.error_code == 63016:
+                print("\n🔧 SOLUTION:")
+                print("   Message or media file is too large:")
+                print("   1. Keep images under 5MB")
+                print("   2. Compress images before uploading")
+                print("   3. Use smaller image dimensions")
             elif message.error_code == 21408:
                 print("\n🔧 SOLUTION:")
                 print("   Your Twilio account needs WhatsApp enabled:")
