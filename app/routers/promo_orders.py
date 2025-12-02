@@ -346,12 +346,8 @@ def create_order(
                 # Free shipping if order total exceeds product's threshold
                 continue
             else:
-                # Add product's shipping charge multiplied by quantity
+                # Add product's shipping charge from database (multiplied by quantity)
                 shipping_charges += Decimal(product.shipping_charge) * item.quantity
-    
-    # Fallback to global settings if no product-specific shipping
-    if shipping_charges == Decimal(0):
-        shipping_charges = Decimal(settings.SHIPPING_CHARGE) if subtotal < settings.FREE_SHIPPING_THRESHOLD else Decimal(0)
     
     tax_amount = Decimal(0)  # Add tax calculation if needed
     
