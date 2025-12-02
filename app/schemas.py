@@ -604,6 +604,8 @@ class ProductListResponse(BaseResponse):
     stock_quantity: int
     is_featured: bool
     is_active: bool
+    shipping_charge: Optional[Decimal] = Decimal(0)
+    free_shipping_above: Optional[Decimal] = None
     category: Optional[ProductCategoryResponse] = None
     images: List[ProductImageResponse] = []
     created_at: datetime
