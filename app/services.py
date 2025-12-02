@@ -11,6 +11,7 @@ from typing import List
 from pydantic import BaseModel
 from razorpay.errors import SignatureVerificationError
 from app import models
+from datetime import datetime
 
 class SMSService:
     """SMS service supporting both Twilio and MSG91."""
@@ -847,6 +848,7 @@ Thank you for booking with us!
         print(f"✅ Booking notifications ENABLED")
         print(f"✅ SEND_WHATSAPP_ON_BOOKING: {settings.SEND_WHATSAPP_ON_BOOKING}")
         print(f"✅ TWILIO_ACCOUNT_SID: {'SET' if settings.TWILIO_ACCOUNT_SID else 'NOT SET'}")
+        print(f"🛕 Temple: {booking.temple if hasattr(booking, 'temple') else None}")
         print(f"🛕 Puja: {booking.puja}")
         print(f"📋 Plan: {booking.plan}")
 
@@ -920,30 +922,105 @@ Best regards,
             else:
                 print(f"✅ Phone number valid, proceeding with WhatsApp")
                 
-                whatsapp_body = NotificationService.format_booking_details_whatsapp(booking)
+                # Check if this is a temple booking (temple_id set, puja_id not set)
+                is_temple_booking = hasattr(booking, 'temple') and booking.temple and not booking.puja
                 
-                # ALWAYS use this specific PNG image for WhatsApp
-                # This image is guaranteed to work with WhatsApp (PNG format, publicly accessible)
-                media_url = "https://api.33kotidham.in/uploads/images/b4bd9c33-d6e3-4069-b436-ef8e4c5cfaa0.png"
-                print(f"📸 Using verified WhatsApp-compatible image: {media_url}")
+                # Try using WhatsApp templates first (production)
+                template_sent = False
+                try:
+                    from whatsapp_template_sender import WhatsAppTemplateSender
+                    sender = WhatsAppTemplateSender()
+                    
+                    if is_temple_booking:
+                        # Use temple booking template
+                        print(f"📋 Using TEMPLE booking template")
+                        template_sent = sender.send_temple_booking(
+                            phone=user_phone,
+                            booking_id=booking.id,
+                            status="PENDING",
+                            booking_date=booking.booking_date.strftime('%d-%m-%Y %H:%M') if booking.booking_date else "N/A",
+                            temple_name=booking.temple.name if booking.temple else "N/A",
+                            location=booking.temple.location if booking.temple and booking.temple.location else "N/A",
+                            total_amount=str(NotificationService._calculate_booking_total(booking)),
+                            gotra=booking.gotra or "N/A",
+                            mobile=booking.mobile_number or user_phone
+                        )
+                    else:
+                        # Use puja booking template
+                        print(f"📋 Using PUJA booking template")
+                        puja_date = booking.puja.date if booking.puja and booking.puja.date else "N/A"
+                        puja_time_obj = booking.puja.time if booking.puja and booking.puja.time else None
+                        
+                        # Format time to 12-hour IST format
+                        if puja_time_obj and puja_time_obj != "N/A":
+                            try:
+                                if isinstance(puja_time_obj, str):
+                                    time_obj = datetime.strptime(puja_time_obj, "%H:%M:%S").time()
+                                else:
+                                    time_obj = puja_time_obj
+                                puja_time = datetime.combine(datetime.today(), time_obj).strftime("%I:%M %p") + " IST"
+                            except:
+                                puja_time = f"{puja_time_obj} IST"
+                        else:
+                            puja_time = "N/A"
+                        
+                        plan_price = "0"
+                        try:
+                            if booking.plan:
+                                plan_price = str(booking.plan.discounted_price if booking.plan.discounted_price else booking.plan.actual_price)
+                        except:
+                            plan_price = "0"
+                        
+                        template_sent = sender.send_booking_pending(
+                            phone=user_phone,
+                            booking_id=booking.id,
+                            booking_date=booking.booking_date.strftime('%d-%m-%Y %H:%M') if booking.booking_date else "N/A",
+                            puja_name=booking.puja.name if booking.puja else "N/A",
+                            plan_name=booking.plan.name if booking.plan else "N/A",
+                            location=booking.puja.temple_address if booking.puja else "N/A",
+                            puja_date=str(puja_date),
+                            puja_time=puja_time,
+                            plan_price=plan_price,
+                            total_amount=str(NotificationService._calculate_booking_total(booking)),
+                            gotra=booking.gotra or "N/A",
+                            mobile=booking.mobile_number or user_phone
+                        )
+                    
+                    if template_sent:
+                        print(f"✅ WhatsApp TEMPLATE sent successfully")
+                        whatsapp_sent = True
+                    else:
+                        print(f"⚠️ Template not configured or failed, falling back to free-form message")
+                        
+                except Exception as template_err:
+                    print(f"⚠️ Template sending failed: {template_err}")
+                    print(f"   Falling back to free-form WhatsApp message")
                 
-                print(f"📤 Calling send_whatsapp_notification...")
-                print(f"   Phone: {user_phone}")
-                print(f"   Media URL: {media_url}")
-                print(f"   Message length: {len(whatsapp_body)}")
+                # Fallback to free-form message if template failed or not configured
+                if not template_sent:
+                    print(f"📝 Using free-form WhatsApp message (sandbox/fallback)")
+                    whatsapp_body = NotificationService.format_booking_details_whatsapp(booking)
+                    
+                    # ALWAYS use this specific PNG image for WhatsApp
+                    media_url = "https://api.33kotidham.in/uploads/images/b4bd9c33-d6e3-4069-b436-ef8e4c5cfaa0.png"
+                    print(f"📸 Using verified WhatsApp-compatible image: {media_url}")
+                    
+                    print(f"📤 Calling send_whatsapp_notification...")
+                    print(f"   Phone: {user_phone}")
+                    print(f"   Media URL: {media_url}")
+                    print(f"   Message length: {len(whatsapp_body)}")
+                    
+                    # Try sending with media first
+                    whatsapp_sent = NotificationService.send_whatsapp_notification(user_phone, whatsapp_body, media_url=media_url)
+                    
+                    # If failed and media was included, retry without media
+                    if not whatsapp_sent and media_url:
+                        print(f"⚠️ WhatsApp with media failed, retrying WITHOUT media...")
+                        whatsapp_sent = NotificationService.send_whatsapp_notification(user_phone, whatsapp_body, media_url=None)
+                        if whatsapp_sent:
+                            print(f"✅ WhatsApp sent successfully WITHOUT media")
                 
-                # Try sending with media first
-                whatsapp_sent = NotificationService.send_whatsapp_notification(user_phone, whatsapp_body, media_url=media_url)
-                
-                # If failed and media was included, retry without media
-                if not whatsapp_sent and media_url:
-                    print(f"⚠️ WhatsApp with media failed, retrying WITHOUT media...")
-                    whatsapp_sent = NotificationService.send_whatsapp_notification(user_phone, whatsapp_body, media_url=None)
-                    if whatsapp_sent:
-                        print(f"✅ WhatsApp sent successfully WITHOUT media")
-                
-                print(f"💬 send_whatsapp_notification returned: {whatsapp_sent}")
-                print(f"💬 WhatsApp notification: {'✅ SENT' if whatsapp_sent else '❌ FAILED'}")
+                print(f"💬 WhatsApp final result: {'✅ SENT' if whatsapp_sent else '❌ FAILED'}")
                 
         except Exception as e:
             print(f"❌ WhatsApp notification error: {str(e)}")

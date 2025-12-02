@@ -18,7 +18,12 @@ class Settings:
     TWILIO_ACCOUNT_SID: str = config("TWILIO_ACCOUNT_SID", default="")
     TWILIO_AUTH_TOKEN: str = config("TWILIO_AUTH_TOKEN", default="")
     TWILIO_PHONE_NUMBER: str = config("TWILIO_PHONE_NUMBER", default="")
-    TWILIO_WHATSAPP_NUMBER: str = config("TWILIO_WHATSAPP_NUMBER", default="whatsapp:+14155238886")
+    TWILIO_WHATSAPP_NUMBER: str = config("TWILIO_WHATSAPP_NUMBER", default="whatsapp:+19804808487")
+    
+    # WhatsApp Template SIDs (Content Templates)
+    WHATSAPP_TEMPLATE_BOOKING_PENDING: str = config("WHATSAPP_TEMPLATE_BOOKING_PENDING", default="")
+    WHATSAPP_TEMPLATE_BOOKING_CONFIRMED: str = config("WHATSAPP_TEMPLATE_BOOKING_CONFIRMED", default="")
+    WHATSAPP_TEMPLATE_TEMPLE_BOOKING: str = config("WHATSAPP_TEMPLATE_TEMPLE_BOOKING", default="")
     
     # SMS Provider Selection
     SMS_PROVIDER: str = config("SMS_PROVIDER", default="auto")  # auto, twilio, msg91
