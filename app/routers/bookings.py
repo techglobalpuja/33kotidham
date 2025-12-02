@@ -367,6 +367,14 @@ def create_booking_with_razorpay(
     payment = schemas.PaymentCreate(booking_id=db_booking.id, amount=amount)
     db_payment = crud.PaymentCRUD.create_payment(db, payment, razorpay_order["id"])
     
+    # Queue PENDING notification for delivery (non-blocking, reliable)
+    # This sends WhatsApp/Email notification immediately after booking creation
+    if CELERY_AVAILABLE:
+        send_booking_notification.delay(db_booking.id, "pending")
+        logger.info(f"📬 Queued PENDING notification for booking {db_booking.id}")
+    else:
+        logger.warning(f"⚠️ Celery not available - notification not queued for booking {db_booking.id}")
+    
     # Return booking and Razorpay order info IMMEDIATELY without waiting for notifications
     response = schemas.RazorpayBookingResponse(
         booking=schemas.BookingResponse.from_orm(db_booking),
