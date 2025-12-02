@@ -1099,8 +1099,84 @@ Best regards,
             logger.error(f"❌ Email confirmation error: {str(e)}", exc_info=True)
 
         # WhatsApp notification with enhanced details
+        whatsapp_sent = False
         try:
-            whatsapp_body = f"""✅ *Booking Confirmed!* ✅
+            logger.info(f"💬 Building WhatsApp confirmation message...")
+            logger.info(f"💬 User phone for WhatsApp: '{user_phone}'")
+            
+            if not user_phone or user_phone.strip() == "":
+                logger.warning(f"⚠️ SKIPPING WHATSAPP: No valid phone number provided")
+                whatsapp_sent = False
+            else:
+                logger.info(f"✅ Phone number valid, proceeding with WhatsApp confirmation")
+                
+                # Check if this is a temple booking (temple_id set, puja_id not set)
+                is_temple_booking = hasattr(booking, 'temple') and booking.temple and not booking.puja
+                
+                # Try using WhatsApp templates first (production)
+                template_sent = False
+                try:
+                    from whatsapp_template_sender import WhatsAppTemplateSender
+                    sender = WhatsAppTemplateSender()
+                    
+                    if is_temple_booking:
+                        # Use temple booking template for confirmation
+                        logger.info(f"📋 Using TEMPLE booking template for CONFIRMED status")
+                        template_sent = sender.send_temple_booking(
+                            phone=user_phone,
+                            booking_id=booking.id,
+                            status="CONFIRMED",
+                            booking_date=booking.booking_date.strftime('%d-%m-%Y %H:%M') if booking.booking_date else "N/A",
+                            temple_name=booking.temple.name if booking.temple else "N/A",
+                            location=booking.temple.location if booking.temple and booking.temple.location else "N/A",
+                            total_amount=str(NotificationService._calculate_booking_total(booking)),
+                            gotra=booking.gotra or "N/A",
+                            mobile=booking.mobile_number or user_phone
+                        )
+                    else:
+                        # Use puja success template for CONFIRMED bookings
+                        logger.info(f"📋 Using PUJA SUCCESS template for CONFIRMED status")
+                        puja_date = booking.puja.date if booking.puja and booking.puja.date else "N/A"
+                        puja_time_obj = booking.puja.time if booking.puja and booking.puja.time else None
+                        
+                        # Format time to 12-hour IST format
+                        if puja_time_obj and puja_time_obj != "N/A":
+                            try:
+                                if isinstance(puja_time_obj, str):
+                                    time_obj = datetime.strptime(puja_time_obj, "%H:%M:%S").time()
+                                else:
+                                    time_obj = puja_time_obj
+                                puja_time = datetime.combine(datetime.today(), time_obj).strftime("%I:%M %p") + " IST"
+                            except:
+                                puja_time = f"{puja_time_obj} IST"
+                        else:
+                            puja_time = "N/A"
+                        
+                        template_sent = sender.send_booking_confirmed(
+                            phone=user_phone,
+                            booking_id=booking.id,
+                            puja_name=booking.puja.name if booking.puja else "N/A",
+                            plan_name=booking.plan.name if booking.plan else "N/A",
+                            location=booking.puja.temple_address if booking.puja else "N/A",
+                            puja_date=str(puja_date),
+                            puja_time=puja_time,
+                            total_amount=str(NotificationService._calculate_booking_total(booking))
+                        )
+                    
+                    if template_sent:
+                        logger.info(f"✅ WhatsApp CONFIRMATION template sent successfully")
+                        whatsapp_sent = True
+                    else:
+                        logger.warning(f"⚠️ Confirmation template not configured or failed, falling back to free-form message")
+                        
+                except Exception as template_err:
+                    logger.warning(f"⚠️ Template sending failed: {template_err}")
+                    logger.info(f"   Falling back to free-form WhatsApp message")
+                
+                # Fallback to free-form message if template failed or not configured
+                if not template_sent:
+                    logger.info(f"📝 Using free-form WhatsApp confirmation message (sandbox/fallback)")
+                    whatsapp_body = f"""✅ *Booking Confirmed!* ✅
 
 {NotificationService.format_booking_details_whatsapp(booking)}
 
@@ -1110,16 +1186,25 @@ Further instructions will be sent to you shortly.
 
 Thank you for choosing 33 Koti Dham! 🙏
 """
-            
-            # Get puja image URL for WhatsApp media attachment
-            media_url = None
-            if booking.puja and booking.puja.images:
-                img_url = booking.puja.images[0].image_url if booking.puja.images else ""
-                if img_url:
-                    media_url = NotificationService._normalize_image_url(img_url)
-            
-            whatsapp_sent = NotificationService.send_whatsapp_notification(user_phone, whatsapp_body, media_url=media_url)
-            logger.info(f"💬 WhatsApp confirmation: {'✅ Sent' if whatsapp_sent else '❌ Failed'}")
+                    
+                    # Get puja image URL for WhatsApp media attachment
+                    media_url = None
+                    if booking.puja and booking.puja.images:
+                        img_url = booking.puja.images[0].image_url if booking.puja.images else ""
+                        if img_url:
+                            media_url = NotificationService._normalize_image_url(img_url)
+                    
+                    whatsapp_sent = NotificationService.send_whatsapp_notification(user_phone, whatsapp_body, media_url=media_url)
+                    
+                    # If failed and media was included, retry without media
+                    if not whatsapp_sent and media_url:
+                        logger.warning(f"⚠️ WhatsApp with media failed, retrying WITHOUT media...")
+                        whatsapp_sent = NotificationService.send_whatsapp_notification(user_phone, whatsapp_body, media_url=None)
+                        if whatsapp_sent:
+                            logger.info(f"✅ WhatsApp sent successfully WITHOUT media")
+                
+                logger.info(f"💬 WhatsApp confirmation: {'✅ Sent' if whatsapp_sent else '❌ Failed'}")
+                
         except Exception as e:
             logger.error(f"❌ WhatsApp confirmation error: {str(e)}", exc_info=True)
             whatsapp_sent = False
