@@ -898,16 +898,10 @@ Best regards,
 </body>
 </html>"""
         
+        # Email notifications are temporarily disabled per request - only WhatsApp will be sent
         email_sent = False
-        try:
-            print(f"📧 Sending email to: {user_email}")
-            email_sent = NotificationService.send_email_notification(user_email, email_subject, email_body, email_html)
-            print(f"✉️ Email notification: {'✅ SENT' if email_sent else '❌ FAILED'}")
-        except Exception as e:
-            print(f"❌ Email notification error: {str(e)}")
-            import traceback
-            print(traceback.format_exc())
-            email_sent = False
+        print(f"✉️ Email sending skipped for booking {booking.id} (WhatsApp-only mode)")
+        email_sent = False
 
         # WhatsApp notification with enhanced details
         whatsapp_sent = False
@@ -1091,12 +1085,9 @@ Best regards,
 </body>
 </html>"""
         
+        # Email notifications are temporarily disabled per request - only WhatsApp will be sent
         email_sent = False
-        try:
-            email_sent = NotificationService.send_email_notification(user_email, email_subject, email_body, email_html)
-            logger.info(f"✉️  Email confirmation: {'✅ Sent' if email_sent else '❌ Failed'}")
-        except Exception as e:
-            logger.error(f"❌ Email confirmation error: {str(e)}", exc_info=True)
+        logger.info(f"✉️ Email confirmation skipped for booking {booking.id} (WhatsApp-only mode)")
 
         # WhatsApp notification with enhanced details
         whatsapp_sent = False
