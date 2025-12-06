@@ -2,8 +2,10 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 from typing import List, Optional, Any, Dict
 import logging
+from datetime import datetime, date
+import pytz
 from app.database import get_db
-from app import schemas, crud
+from app import schemas, crud, models
 from app.auth import get_current_active_user, get_admin_user
 from app.models import User, BookingStatus
 from app.services import create_razorpay_order, calculate_booking_amount, verify_razorpay_signature, NotificationService
@@ -19,19 +21,83 @@ except ImportError:
 router = APIRouter(prefix="/bookings", tags=["bookings"])
 logger = logging.getLogger(__name__)
 
+# IST Timezone
+IST = pytz.timezone('Asia/Kolkata')
+
+def get_ist_now():
+    """Get current time in IST."""
+    return datetime.now(IST)
+
 
 @router.get("/puja", response_model=List[schemas.BookingResponse])
 def get_puja_bookings(
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=100),
+    start_date: Optional[date] = Query(None, description="Filter bookings from this date (YYYY-MM-DD)"),
+    end_date: Optional[date] = Query(None, description="Filter bookings until this date (YYYY-MM-DD)"),
+    status: Optional[str] = Query(None, description="Filter by booking status"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
-    """Get puja bookings (puja_id not null). Admins only."""
+    """Get puja bookings (puja_id not null) with optional date and status filters. Admins only."""
     if current_user.role not in ["admin", "super_admin"]:
         raise HTTPException(status_code=403, detail="Not authorized")
-    query = db.query(crud.models.Booking).filter(crud.models.Booking.puja_id != None)
-    bookings = query.offset(skip).limit(limit).all()
+    
+    query = db.query(models.Booking).filter(models.Booking.puja_id != None)
+    
+    # Apply date filters
+    if start_date:
+        start_datetime = IST.localize(datetime.combine(start_date, datetime.min.time()))
+        query = query.filter(models.Booking.booking_date >= start_datetime)
+    
+    if end_date:
+        end_datetime = IST.localize(datetime.combine(end_date, datetime.max.time()))
+        query = query.filter(models.Booking.booking_date <= end_datetime)
+    
+    # Apply status filter
+    if status:
+        query = query.filter(models.Booking.status == status)
+    
+    bookings = query.order_by(models.Booking.booking_date.desc()).offset(skip).limit(limit).all()
+    return [schemas.BookingResponse.from_orm(b) for b in bookings]
+
+
+@router.get("/puja/{puja_id}/bookings", response_model=List[schemas.BookingResponse])
+def get_bookings_by_puja(
+    puja_id: int,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=100),
+    start_date: Optional[date] = Query(None, description="Filter bookings from this date (YYYY-MM-DD)"),
+    end_date: Optional[date] = Query(None, description="Filter bookings until this date (YYYY-MM-DD)"),
+    status: Optional[str] = Query(None, description="Filter by booking status"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """Get all bookings for a specific puja with optional date and status filters. Admins only."""
+    if current_user.role not in ["admin", "super_admin"]:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    
+    # Verify puja exists
+    puja = crud.PujaCRUD.get_puja(db, puja_id)
+    if not puja:
+        raise HTTPException(status_code=404, detail="Puja not found")
+    
+    query = db.query(models.Booking).filter(models.Booking.puja_id == puja_id)
+    
+    # Apply date filters
+    if start_date:
+        start_datetime = IST.localize(datetime.combine(start_date, datetime.min.time()))
+        query = query.filter(models.Booking.booking_date >= start_datetime)
+    
+    if end_date:
+        end_datetime = IST.localize(datetime.combine(end_date, datetime.max.time()))
+        query = query.filter(models.Booking.booking_date <= end_datetime)
+    
+    # Apply status filter
+    if status:
+        query = query.filter(models.Booking.status == status)
+    
+    bookings = query.order_by(models.Booking.booking_date.desc()).offset(skip).limit(limit).all()
     return [schemas.BookingResponse.from_orm(b) for b in bookings]
 
 
@@ -39,14 +105,32 @@ def get_puja_bookings(
 def get_temple_chadawa_bookings(
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=100),
+    start_date: Optional[date] = Query(None, description="Filter bookings from this date (YYYY-MM-DD)"),
+    end_date: Optional[date] = Query(None, description="Filter bookings until this date (YYYY-MM-DD)"),
+    status: Optional[str] = Query(None, description="Filter by booking status"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
-    """Get temple chadawa bookings (temple_id not null). Admins only."""
+    """Get temple chadawa bookings (temple_id not null) with optional date and status filters. Admins only."""
     if current_user.role not in ["admin", "super_admin"]:
         raise HTTPException(status_code=403, detail="Not authorized")
-    query = db.query(crud.models.Booking).filter(crud.models.Booking.temple_id != None)
-    bookings = query.offset(skip).limit(limit).all()
+    
+    query = db.query(models.Booking).filter(models.Booking.temple_id != None)
+    
+    # Apply date filters
+    if start_date:
+        start_datetime = IST.localize(datetime.combine(start_date, datetime.min.time()))
+        query = query.filter(models.Booking.booking_date >= start_datetime)
+    
+    if end_date:
+        end_datetime = IST.localize(datetime.combine(end_date, datetime.max.time()))
+        query = query.filter(models.Booking.booking_date <= end_datetime)
+    
+    # Apply status filter
+    if status:
+        query = query.filter(models.Booking.status == status)
+    
+    bookings = query.order_by(models.Booking.booking_date.desc()).offset(skip).limit(limit).all()
     return [schemas.BookingResponse.from_orm(b) for b in bookings]
 
 

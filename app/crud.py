@@ -4,9 +4,17 @@ from typing import List, Optional
 from datetime import datetime, timedelta
 import random
 import string
+import pytz
 from app import models, schemas
 from app.utils import FileManager
 from app.auth import get_password_hash
+
+# IST Timezone
+IST = pytz.timezone('Asia/Kolkata')
+
+def get_ist_now():
+    """Get current time in IST."""
+    return datetime.now(IST)
 
 
 # User CRUD operations
@@ -501,7 +509,7 @@ class BookingCRUD:
             puja_id=puja_id,
             temple_id=temple_id,
             plan_id=plan_id,
-            booking_date=booking.booking_date or datetime.utcnow(),
+            booking_date=booking.booking_date or get_ist_now(),
             mobile_number=getattr(booking, 'mobile_number', None),
             whatsapp_number=getattr(booking, 'whatsapp_number', None),
             gotra=getattr(booking, 'gotra', None),
