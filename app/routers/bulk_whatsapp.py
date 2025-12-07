@@ -13,7 +13,8 @@ logger = logging.getLogger(__name__)
 
 class BulkWhatsAppRequest(BaseModel):
     phone_numbers: List[str]
-    message: str
+    template_name: str  # e.g., "33koti_promo" or "puja_promp"
+    template_params: Optional[List[str]] = None  # For templates with variables
     media_url: Optional[str] = None
 
 
@@ -61,18 +62,27 @@ def send_bulk_whatsapp(
     current_user: User = Depends(get_admin_user)
 ):
     """
-    Send WhatsApp message to multiple numbers (Admin only).
+    Send WhatsApp template message to multiple numbers (Admin only).
     
-    Example:
+    Example 1 - Generic Promo (33koti_promo):
     ```json
     {
-        "phone_numbers": [
-            "+91 97149 20830",
-            "076985 92808",
-            "+91 88394 08775"
+        "phone_numbers": ["+91 97149 20830", "076985 92808"],
+        "template_name": "33koti_promo"
+    }
+    ```
+    
+    Example 2 - Puja Specific (puja_promp):
+    ```json
+    {
+        "phone_numbers": ["+91 97149 20830", "076985 92808"],
+        "template_name": "puja_promp",
+        "template_params": [
+            "Participate in Baglamukhi Puja to remove all your horoscope Doshas for Prosperity and Maa Baglamukhi blessings.",
+            "Remove horoscope Doshas",
+            "https://www.33kotidham.com/puja/64"
         ],
-        "message": "Hello! This is a test message from 33 Koti Dham.",
-        "media_url": "https://api.33kotidham.in/uploads/images/example.png"
+        "media_url": "https://api.33kotidham.in/uploads/images/baglamukhi.png"
     }
     ```
     """
@@ -82,15 +92,32 @@ def send_bulk_whatsapp(
             detail="Phone numbers list cannot be empty"
         )
     
-    if not request.message or len(request.message.strip()) == 0:
+    if not request.template_name or len(request.template_name.strip()) == 0:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Message cannot be empty"
+            detail="Template name cannot be empty"
         )
     
+    # Validate template name
+    valid_templates = ["33koti_promo", "puja_promp"]
+    if request.template_name not in valid_templates:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid template name. Must be one of: {', '.join(valid_templates)}"
+        )
+    
+    # Validate template params for puja_promp
+    if request.template_name == "puja_promp":
+        if not request.template_params or len(request.template_params) != 3:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="puja_promp template requires 3 parameters: [message, benefit, url]"
+            )
+    
     logger.info(f"🔵 Bulk WhatsApp Send Request by {current_user.mobile}")
+    logger.info(f"   Template: {request.template_name}")
     logger.info(f"   Total numbers: {len(request.phone_numbers)}")
-    logger.info(f"   Message length: {len(request.message)}")
+    logger.info(f"   Template params: {request.template_params or 'None'}")
     logger.info(f"   Media URL: {request.media_url or 'None'}")
     
     results = []
@@ -101,13 +128,13 @@ def send_bulk_whatsapp(
         try:
             # Normalize phone number
             normalized_phone = normalize_phone_number(phone)
-            
             logger.info(f"📱 Sending to {phone} (normalized: {normalized_phone})")
             
-            # Send WhatsApp message
-            sent = NotificationService.send_whatsapp_notification(
+            # Send WhatsApp template message
+            sent = NotificationService.send_whatsapp_template(
                 phone_number=normalized_phone,
-                message=request.message,
+                template_name=request.template_name,
+                template_params=request.template_params or [],
                 media_url=request.media_url
             )
             

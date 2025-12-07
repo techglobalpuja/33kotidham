@@ -25,6 +25,10 @@ class Settings:
     WHATSAPP_TEMPLATE_BOOKING_CONFIRMED: str = config("WHATSAPP_TEMPLATE_BOOKING_CONFIRMED", default="")
     WHATSAPP_TEMPLATE_TEMPLE_BOOKING: str = config("WHATSAPP_TEMPLATE_TEMPLE_BOOKING", default="")
     
+    # WhatsApp Marketing Templates (Meta Approved)
+    WHATSAPP_TEMPLATE_33KOTI_PROMO: str = config("WHATSAPP_TEMPLATE_33KOTI_PROMO", default="")
+    WHATSAPP_TEMPLATE_PUJA_PROMO: str = config("WHATSAPP_TEMPLATE_PUJA_PROMO", default="")
+    
     # SMS Provider Selection
     SMS_PROVIDER: str = config("SMS_PROVIDER", default="auto")  # auto, twilio, msg91
     

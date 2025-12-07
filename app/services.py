@@ -829,6 +829,137 @@ Thank you for booking with us!
             return False
 
     @staticmethod
+    def send_whatsapp_template(
+        phone_number: str,
+        template_name: str,
+        template_params: List[str] = None,
+        media_url: Optional[str] = None
+    ) -> bool:
+        """
+        Send WhatsApp message using Meta approved templates.
+        
+        Supported templates:
+        - 33koti_promo (no params needed)
+        - puja_promp (requires 3 params: message, benefit, url)
+        """
+        print(f"\n🔵 SEND_WHATSAPP_TEMPLATE CALLED")
+        print(f"   Phone: {phone_number}")
+        print(f"   Template: {template_name}")
+        print(f"   Params: {template_params}")
+        print(f"   Media URL: {media_url}")
+        
+        if not settings.SEND_WHATSAPP_ON_BOOKING:
+            print(f"🔴 SEND_WHATSAPP_ON_BOOKING = False, returning False")
+            return False
+
+        if not settings.TWILIO_ACCOUNT_SID or not settings.TWILIO_AUTH_TOKEN:
+            print(f"🔴 Twilio credentials not configured")
+            return False
+
+        try:
+            print(f"🟢 Initializing Twilio client...")
+            client = Client(settings.TWILIO_ACCOUNT_SID, settings.TWILIO_AUTH_TOKEN)
+
+            # Normalize phone number
+            phone = phone_number.replace("+", "").replace("-", "").replace(" ", "")
+            if not phone.startswith("91") and len(phone) == 10:
+                phone = "91" + phone
+            if not phone.startswith("+"):
+                phone = "+" + phone
+
+            print(f"📤 Twilio WhatsApp Template Send Details:")
+            print(f"   From: whatsapp:{settings.TWILIO_WHATSAPP_NUMBER}")
+            print(f"   To: whatsapp:{phone}")
+            print(f"   Template: {template_name}")
+            
+            # Build template message based on template name
+            if template_name == "33koti_promo":
+                # Static template - no variables
+                message = """🙏 33 Koti Dham 🙏
+
+Namaste! 🙏
+
+We are pleased to announce our special puja services.
+
+📅 Book your puja today
+🛕 Experienced pandits
+📸 Live streaming available
+✨ Prasad delivery
+
+Visit: https://33kotidham.com
+
+Om Namah Shivaya 🕉️
+
+Reply STOP to unsubscribe"""
+                
+            elif template_name == "puja_promp":
+                # Dynamic template with 3 parameters
+                if not template_params or len(template_params) != 3:
+                    print(f"🔴 puja_promp requires 3 parameters")
+                    return False
+                
+                message = f"""🙏 Namaste!
+
+{template_params[0]}
+
+🛕 Benefits:
+• {template_params[1]}
+• Experienced pandits
+• Live streaming
+• Prasad delivery
+
+🔗 Book now: {template_params[2]}
+
+Om Namah Shivaya 🕉️
+
+🙏 33 Koti Dham
+
+Reply STOP to unsubscribe"""
+            else:
+                print(f"🔴 Unknown template: {template_name}")
+                return False
+
+            # Send via Twilio WhatsApp
+            try:
+                if media_url:
+                    print(f"📸 Sending template WITH media...")
+                    msg = client.messages.create(
+                        body=message,
+                        from_=f"whatsapp:{settings.TWILIO_WHATSAPP_NUMBER}",
+                        to=f"whatsapp:{phone}",
+                        media_url=[media_url]
+                    )
+                else:
+                    print(f"📝 Sending template TEXT ONLY...")
+                    msg = client.messages.create(
+                        body=message,
+                        from_=f"whatsapp:{settings.TWILIO_WHATSAPP_NUMBER}",
+                        to=f"whatsapp:{phone}"
+                    )
+                
+                print(f"✅ Twilio Template Response:")
+                print(f"   Message SID: {msg.sid}")
+                print(f"   Status: {msg.status}")
+                print(f"🟢 RETURNING TRUE\n")
+                return True
+                
+            except Exception as twilio_err:
+                print(f"🔴 Twilio Template API Error: {str(twilio_err)}")
+                print(f"   Error Type: {type(twilio_err).__name__}")
+                raise
+                
+        except Exception as e:
+            print(f"🔴 FAILED to send WhatsApp template")
+            print(f"   Phone: {phone_number}")
+            print(f"   Template: {template_name}")
+            print(f"   Exception: {str(e)}")
+            print(f"   Exception Type: {type(e).__name__}")
+            import traceback
+            print(f"   Traceback: {traceback.format_exc()}")
+            print(f"🔴 RETURNING FALSE\n")
+            return False
+
+    @staticmethod
     def send_booking_pending_notification(booking, user_email: str, user_phone: str) -> dict:
         """Send notification when booking is created (PENDING status)."""
         print(f"\n{'='*70}")
