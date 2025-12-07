@@ -867,75 +867,66 @@ Thank you for booking with us!
             if not phone.startswith("+"):
                 phone = "+" + phone
 
-            print(f"📤 Twilio WhatsApp Template Send Details:")
-            print(f"   From: whatsapp:{settings.TWILIO_WHATSAPP_NUMBER}")
-            print(f"   To: whatsapp:{phone}")
-            print(f"   Template: {template_name}")
+            # Get Template SID based on template name
+            template_sid = None
+            content_variables = {}
             
-            # Build template message based on template name
             if template_name == "33koti_promo":
-                # Static template - no variables
-                message = """🙏 33 Koti Dham 🙏
-
-Namaste! 🙏
-
-We are pleased to announce our special puja services.
-
-📅 Book your puja today
-🛕 Experienced pandits
-📸 Live streaming available
-✨ Prasad delivery
-
-Visit: https://33kotidham.com
-
-Om Namah Shivaya 🕉️
-
-Reply STOP to unsubscribe"""
+                template_sid = settings.WHATSAPP_TEMPLATE_33KOTI_PROMO
+                # No variables needed for this template
+                print(f"📋 Using template: 33koti_promo (SID: {template_sid})")
                 
             elif template_name == "puja_promp":
+                template_sid = settings.WHATSAPP_TEMPLATE_PUJA_PROMO
                 # Dynamic template with 3 parameters
                 if not template_params or len(template_params) != 3:
                     print(f"🔴 puja_promp requires 3 parameters")
                     return False
                 
-                message = f"""🙏 Namaste!
-
-{template_params[0]}
-
-🛕 Benefits:
-• {template_params[1]}
-• Experienced pandits
-• Live streaming
-• Prasad delivery
-
-🔗 Book now: {template_params[2]}
-
-Om Namah Shivaya 🕉️
-
-🙏 33 Koti Dham
-
-Reply STOP to unsubscribe"""
+                # Map parameters to template variables
+                content_variables = {
+                    "1": template_params[0],  # Puja message
+                    "2": template_params[1],  # Benefit
+                    "3": template_params[2]   # URL
+                }
+                print(f"📋 Using template: puja_promp (SID: {template_sid})")
+                print(f"   Variables: {content_variables}")
             else:
                 print(f"🔴 Unknown template: {template_name}")
                 return False
 
-            # Send via Twilio WhatsApp
+            if not template_sid:
+                print(f"🔴 Template SID not configured for {template_name}")
+                return False
+
+            print(f"📤 Twilio WhatsApp Content Template Send:")
+            print(f"   From: whatsapp:{settings.TWILIO_WHATSAPP_NUMBER}")
+            print(f"   To: whatsapp:{phone}")
+            print(f"   ContentSid: {template_sid}")
+
+            # Send via Twilio WhatsApp using Content Template
             try:
+                # Build message parameters
+                msg_params = {
+                    "from_": f"whatsapp:{settings.TWILIO_WHATSAPP_NUMBER}",
+                    "to": f"whatsapp:{phone}",
+                    "content_sid": template_sid
+                }
+                
+                # Add content variables if template has parameters
+                if content_variables:
+                    msg_params["content_variables"] = str(content_variables)
+                
+                # Add media URL if provided (for templates with media header)
                 if media_url:
-                    print(f"📸 Sending template WITH media...")
-                    msg = client.messages.create(
-                        body=message,
-                        from_=f"whatsapp:{settings.TWILIO_WHATSAPP_NUMBER}",
-                        to=f"whatsapp:{phone}",
-                        media_url=[media_url]
-                    )
-                else:
-                    print(f"📝 Sending template TEXT ONLY...")
-                    msg = client.messages.create(
-                        body=message,
-                        from_=f"whatsapp:{settings.TWILIO_WHATSAPP_NUMBER}",
-                        to=f"whatsapp:{phone}"
-                    )
+                    print(f"📸 Including media: {media_url}")
+                    # For templates with media header, include in content variables
+                    if content_variables:
+                        content_variables["media_url"] = media_url
+                        msg_params["content_variables"] = str(content_variables)
+                
+                print(f"📤 Sending Content Template message...")
+                msg = client.messages.create(**msg_params)
                 
                 print(f"✅ Twilio Template Response:")
                 print(f"   Message SID: {msg.sid}")
