@@ -749,6 +749,7 @@ class OrderListResponse(BaseResponse):
     status: str
     payment_status: str
     created_at: datetime
+    order_items: List[OrderItemResponse] = []
 
 
 # Order Payment schemas
