@@ -128,6 +128,10 @@ def send_bulk_whatsapp(
         try:
             # Normalize phone number
             normalized_phone = normalize_phone_number(phone)
+            print(f"\n{'='*70}")
+            print(f"📱 Processing: {phone} → {normalized_phone}")
+            print(f"   Template: {request.template_name}")
+            print(f"{'='*70}")
             logger.info(f"📱 Sending to {phone} (normalized: {normalized_phone})")
             
             # Send WhatsApp template message
@@ -137,6 +141,9 @@ def send_bulk_whatsapp(
                 template_params=request.template_params or [],
                 media_url=request.media_url
             )
+            
+            print(f"📊 Send result: {sent}")
+            print(f"{'='*70}\n")
             
             if sent:
                 successful += 1
@@ -153,7 +160,7 @@ def send_bulk_whatsapp(
                     "phone": phone,
                     "normalized": normalized_phone,
                     "status": "failed",
-                    "error": "WhatsApp send failed"
+                    "error": "WhatsApp send failed - check server logs for details"
                 })
                 logger.warning(f"❌ Failed to send to {normalized_phone}")
                 

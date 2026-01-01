@@ -1,5 +1,7 @@
 from typing import Optional
 from twilio.rest import Client
+import json
+from twilio.base.exceptions import TwilioRestException
 import requests
 import smtplib
 from email.mime.text import MIMEText
@@ -789,34 +791,64 @@ Thank you for booking with us!
 
             # Send via Twilio WhatsApp using sandbox number
             try:
-                if media_url:
-                    print(f"📸 Sending WhatsApp WITH media attachment...")
-                    # Send message with media attachment
-                    msg = client.messages.create(
-                        body=message,
-                        from_=f"whatsapp:{settings.TWILIO_WHATSAPP_NUMBER}",
-                        to=f"whatsapp:{phone}",
-                        media_url=[media_url]
-                    )
-                else:
-                    print(f"📝 Sending WhatsApp TEXT ONLY (no media)...")
-                    # Send text-only message
-                    msg = client.messages.create(
-                        body=message,
-                        from_=f"whatsapp:{settings.TWILIO_WHATSAPP_NUMBER}",
-                        to=f"whatsapp:{phone}"
-                    )
-                
-                print(f"✅ Twilio API Response:")
-                print(f"   Message SID: {msg.sid}")
-                print(f"   Status: {msg.status}")
-                print(f"🟢 RETURNING TRUE\n")
-                return True
-                
-            except Exception as twilio_err:
-                print(f"🔴 Twilio API Error: {str(twilio_err)}")
-                print(f"   Error Type: {type(twilio_err).__name__}")
-                raise  # Re-raise to outer exception handler
+                try:
+                    # Debug: show params we will send
+                    try:
+                        debug_params = {
+                            "body": message,
+                            "from_": f"whatsapp:{settings.TWILIO_WHATSAPP_NUMBER}",
+                            "to": f"whatsapp:{phone}",
+                        }
+                        if media_url:
+                            debug_params["media_url"] = [media_url]
+                        print(f"DEBUG: Notification msg_params: {json.dumps(debug_params, ensure_ascii=False)}")
+                    except Exception:
+                        print(f"DEBUG: Notification msg_params (repr): {repr({'body': message, 'from_': f'whatsapp:{settings.TWILIO_WHATSAPP_NUMBER}', 'to': f'whatsapp:{phone}', 'media_url': media_url})}")
+
+                    if media_url:
+                        print(f"📸 Sending WhatsApp WITH media attachment...")
+                        # Send message with media attachment
+                        msg = client.messages.create(
+                            body=message,
+                            from_=f"whatsapp:{settings.TWILIO_WHATSAPP_NUMBER}",
+                            to=f"whatsapp:{phone}",
+                            media_url=[media_url]
+                        )
+                    else:
+                        print(f"📝 Sending WhatsApp TEXT ONLY (no media)...")
+                        # Send text-only message
+                        msg = client.messages.create(
+                            body=message,
+                            from_=f"whatsapp:{settings.TWILIO_WHATSAPP_NUMBER}",
+                            to=f"whatsapp:{phone}"
+                        )
+
+                    print(f"✅ Twilio API Response:")
+                    print(f"   Message SID: {msg.sid}")
+                    print(f"   Status: {msg.status}")
+                    print(f"🟢 RETURNING TRUE\n")
+                    return True
+
+                except Exception as twilio_err:
+                    print(f"🔴 Twilio API Error: {str(twilio_err)}")
+                    print(f"   Error Type: {type(twilio_err).__name__}")
+                    if isinstance(twilio_err, TwilioRestException):
+                        try:
+                            print(f"   TwilioRestException status={twilio_err.status}, code={twilio_err.code}, msg={twilio_err.msg}")
+                        except Exception:
+                            pass
+                    # Fail gracefully for Twilio errors
+                    return False
+                    
+            except Exception as e:
+                print(f"🔴 FAILED to send WhatsApp message (inner)")
+                print(f"   Phone: {phone_number}")
+                print(f"   Exception: {str(e)}")
+                print(f"   Exception Type: {type(e).__name__}")
+                import traceback
+                print(f"   Traceback: {traceback.format_exc()}")
+                print(f"🔴 RETURNING FALSE\n")
+                return False
                 
         except Exception as e:
             print(f"🔴 FAILED to send WhatsApp message")
@@ -912,32 +944,59 @@ Thank you for booking with us!
                     "to": f"whatsapp:{phone}",
                     "content_sid": template_sid
                 }
-                
-                # Add content variables if template has parameters
+
+                # Prepare content variables (as JSON string) if template has parameters
                 if content_variables:
-                    msg_params["content_variables"] = str(content_variables)
-                
-                # Add media URL if provided (for templates with media header)
-                if media_url:
-                    print(f"📸 Including media: {media_url}")
-                    # For templates with media header, include in content variables
-                    if content_variables:
-                        content_variables["media_url"] = media_url
-                        msg_params["content_variables"] = str(content_variables)
+                    try:
+                        vars_for_api = dict(content_variables)
+                    except Exception:
+                        vars_for_api = {k: v for k, v in content_variables.items()} if isinstance(content_variables, dict) else {}
+
+                    # Add media URL into variables if provided and template expects a media variable
+                    if media_url:
+                        print(f"📸 Including media in content variables: {media_url}")
+                        vars_for_api["media_url"] = media_url
+
+                    # Twilio expects a JSON-encoded string for content_variables
+                    msg_params["content_variables"] = json.dumps(vars_for_api)
+                else:
+                    # If only media_url is provided but no explicit content variables,
+                    # include media under content_variables as best-effort (some templates accept this)
+                    if media_url:
+                        msg_params["content_variables"] = json.dumps({"media_url": media_url})
                 
                 print(f"📤 Sending Content Template message...")
+                # Debug: print exact params sent to Twilio
+                try:
+                    print(f"DEBUG: Template msg_params: {json.dumps(msg_params, ensure_ascii=False)}")
+                except Exception:
+                    print(f"DEBUG: Template msg_params (repr): {repr(msg_params)}")
+
                 msg = client.messages.create(**msg_params)
-                
+
                 print(f"✅ Twilio Template Response:")
                 print(f"   Message SID: {msg.sid}")
                 print(f"   Status: {msg.status}")
-                print(f"🟢 RETURNING TRUE\n")
-                return True
-                
+
+                # Consider queued/accepted/sent as success; otherwise log and return False
+                success_states = {"queued", "accepted", "sending", "sent", "delivered"}
+                if getattr(msg, "status", "") in success_states:
+                    print(f"🟢 RETURNING TRUE\n")
+                    return True
+                else:
+                    print(f"🔴 Twilio returned non-success status: {getattr(msg, 'status', None)}")
+                    return False
+
             except Exception as twilio_err:
                 print(f"🔴 Twilio Template API Error: {str(twilio_err)}")
                 print(f"   Error Type: {type(twilio_err).__name__}")
-                raise
+                if isinstance(twilio_err, TwilioRestException):
+                    try:
+                        print(f"   TwilioRestException status={twilio_err.status}, code={twilio_err.code}, msg={twilio_err.msg}")
+                    except Exception:
+                        pass
+                # Fail gracefully for Twilio template errors
+                return False
                 
         except Exception as e:
             print(f"🔴 FAILED to send WhatsApp template")
