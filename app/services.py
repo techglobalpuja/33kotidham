@@ -868,7 +868,7 @@ Thank you for booking with us!
         media_url: Optional[str] = None
     ) -> bool:
         """
-        Send WhatsApp message using Meta approved templates.
+        Send WhatsApp message using sandbox-compatible format.
         
         Supported templates:
         - 33koti_promo (no params needed)
@@ -899,86 +899,79 @@ Thank you for booking with us!
             if not phone.startswith("+"):
                 phone = "+" + phone
 
-            # Get Template SID based on template name
-            template_sid = None
-            content_variables = {}
+            # Build message body based on template (sandbox-compatible)
+            message_body = None
             
             if template_name == "33koti_promo":
-                template_sid = settings.WHATSAPP_TEMPLATE_33KOTI_PROMO
-                # No variables needed for this template
-                print(f"📋 Using template: 33koti_promo (SID: {template_sid})")
+                message_body = """🙏 *33 Koti Dham* 🙏
+
+Discover divine blessings at 33 Koti Dham!
+
+✨ Book your puja online
+🛕 Connect with sacred temples across India
+🕉️ Receive prasad and blessings at home
+
+Visit: https://www.33kotidham.com
+
+May divine grace be with you! 🙏"""
+                print(f"📋 Using template: 33koti_promo (sandbox format)")
                 
             elif template_name == "puja_promp":
-                template_sid = settings.WHATSAPP_TEMPLATE_PUJA_PROMO
-                # Dynamic template with 3 parameters
                 if not template_params or len(template_params) != 3:
                     print(f"🔴 puja_promp requires 3 parameters")
                     return False
                 
-                # Map parameters to template variables
-                content_variables = {
-                    "1": template_params[0],  # Puja message
-                    "2": template_params[1],  # Benefit
-                    "3": template_params[2]   # URL
-                }
-                print(f"📋 Using template: puja_promp (SID: {template_sid})")
-                print(f"   Variables: {content_variables}")
+                puja_message = template_params[0]
+                benefit = template_params[1]
+                url = template_params[2]
+                
+                message_body = f"""🙏 *33 Koti Dham - Special Puja* 🙏
+
+{puja_message}
+
+🎯 *Benefit:* {benefit}
+
+📖 Learn more and book:
+{url}
+
+🌟 May you be blessed with prosperity and peace! 🙏"""
+                print(f"📋 Using template: puja_promp (sandbox format)")
+                print(f"   Message: {puja_message[:50]}...")
             else:
                 print(f"🔴 Unknown template: {template_name}")
                 return False
 
-            if not template_sid:
-                print(f"🔴 Template SID not configured for {template_name}")
+            if not message_body:
+                print(f"🔴 Failed to build message body")
                 return False
 
-            print(f"📤 Twilio WhatsApp Content Template Send:")
+            print(f"📤 Twilio WhatsApp Send (Sandbox Compatible):")
             print(f"   From: whatsapp:{settings.TWILIO_WHATSAPP_NUMBER}")
             print(f"   To: whatsapp:{phone}")
-            print(f"   ContentSid: {template_sid}")
+            print(f"   Message length: {len(message_body)}")
 
-            # Send via Twilio WhatsApp using Content Template
+            # Send via Twilio WhatsApp using free-form message (sandbox compatible)
             try:
-                # Build message parameters
                 msg_params = {
+                    "body": message_body,
                     "from_": f"whatsapp:{settings.TWILIO_WHATSAPP_NUMBER}",
-                    "to": f"whatsapp:{phone}",
-                    "content_sid": template_sid
+                    "to": f"whatsapp:{phone}"
                 }
-
-                # Prepare content variables (as JSON string) if template has parameters
-                if content_variables:
-                    try:
-                        vars_for_api = dict(content_variables)
-                    except Exception:
-                        vars_for_api = {k: v for k, v in content_variables.items()} if isinstance(content_variables, dict) else {}
-
-                    # Add media URL into variables if provided and template expects a media variable
-                    if media_url:
-                        print(f"📸 Including media in content variables: {media_url}")
-                        vars_for_api["media_url"] = media_url
-
-                    # Twilio expects a JSON-encoded string for content_variables
-                    msg_params["content_variables"] = json.dumps(vars_for_api)
-                else:
-                    # If only media_url is provided but no explicit content variables,
-                    # include media under content_variables as best-effort (some templates accept this)
-                    if media_url:
-                        msg_params["content_variables"] = json.dumps({"media_url": media_url})
                 
-                print(f"📤 Sending Content Template message...")
-                # Debug: print exact params sent to Twilio
-                try:
-                    print(f"DEBUG: Template msg_params: {json.dumps(msg_params, ensure_ascii=False)}")
-                except Exception:
-                    print(f"DEBUG: Template msg_params (repr): {repr(msg_params)}")
-
+                # Add media if provided
+                if media_url:
+                    msg_params["media_url"] = [media_url]
+                    print(f"📸 Including media: {media_url}")
+                
+                print(f"📤 Sending free-form WhatsApp message...")
+                
                 msg = client.messages.create(**msg_params)
 
-                print(f"✅ Twilio Template Response:")
+                print(f"✅ Twilio Response:")
                 print(f"   Message SID: {msg.sid}")
                 print(f"   Status: {msg.status}")
 
-                # Consider queued/accepted/sent as success; otherwise log and return False
+                # Consider queued/accepted/sent as success
                 success_states = {"queued", "accepted", "sending", "sent", "delivered"}
                 if getattr(msg, "status", "") in success_states:
                     print(f"🟢 RETURNING TRUE\n")
@@ -988,14 +981,13 @@ Thank you for booking with us!
                     return False
 
             except Exception as twilio_err:
-                print(f"🔴 Twilio Template API Error: {str(twilio_err)}")
+                print(f"🔴 Twilio API Error: {str(twilio_err)}")
                 print(f"   Error Type: {type(twilio_err).__name__}")
                 if isinstance(twilio_err, TwilioRestException):
                     try:
                         print(f"   TwilioRestException status={twilio_err.status}, code={twilio_err.code}, msg={twilio_err.msg}")
                     except Exception:
                         pass
-                # Fail gracefully for Twilio template errors
                 return False
                 
         except Exception as e:
