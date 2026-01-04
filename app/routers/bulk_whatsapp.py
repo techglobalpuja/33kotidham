@@ -59,10 +59,13 @@ def normalize_phone_number(phone: str) -> str:
 @router.post("/send", response_model=BulkWhatsAppResponse)
 def send_bulk_whatsapp(
     request: BulkWhatsAppRequest,
-    current_user: User = Depends(get_admin_user)
+    current_user: User = Depends(get_admin_user),
+    skip_failed: bool = False
 ):
     """
     Send WhatsApp template message to multiple numbers (Admin only).
+    
+    Set skip_failed=true to automatically skip numbers that previously failed with error 63049.
     
     Example 1 - Generic Promo (33koti_promo):
     ```json
