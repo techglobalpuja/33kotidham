@@ -101,6 +101,7 @@ ipython_config.py
 # pipenv
 #   According to pypa/pipenv#598, it is recommended to include Pipfile.lock in version control.
 #   However, in case of collaboration, if having platform-specific dependencies or dependencies
+temp_auto_push.bat
 #   having no cross-platform support, pipenv may install dependencies that don't work, or not
 #   install all needed dependencies.
 #Pipfile.lock
@@ -170,7 +171,6 @@ cython_debug/
 .idea/
 
 # VS Code
-.vscode/
 
 # Project specific
 uploads/
@@ -205,3 +205,4 @@ test_blog_clean.py
 test_payment_succes.py
 upload_to_wordpree.py
 upload image_to_wordpress.py
+temp_interactive_push.bat
