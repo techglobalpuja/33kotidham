@@ -868,11 +868,11 @@ Thank you for booking with us!
         media_url: Optional[str] = None
     ) -> bool:
         """
-        Send WhatsApp message using sandbox-compatible format.
+        Send WhatsApp message using Meta-approved templates via Twilio Content API.
         
         Supported templates:
-        - 33koti_promo (no params needed)
-        - puja_promp (requires 3 params: message, benefit, url)
+        - 33koti_promo (no params needed) - SID: HX46c755406e89d0f2622699f33e0f805e
+        - puja_promp (requires 3 params: message, benefit, url) - SID: HX82c8860899ba41aa502df50540831e27
         """
         print(f"\n🔵 SEND_WHATSAPP_TEMPLATE CALLED")
         print(f"   Phone: {phone_number}")
@@ -899,71 +899,68 @@ Thank you for booking with us!
             if not phone.startswith("+"):
                 phone = "+" + phone
 
-            # Build message body based on template (sandbox-compatible)
-            message_body = None
+            # Get Content SID and build parameters based on template
+            content_sid = None
+            content_variables = {}
             
             if template_name == "33koti_promo":
-                message_body = """🙏 *33 Koti Dham* 🙏
-
-Discover divine blessings at 33 Koti Dham!
-
-✨ Book your puja online
-🛕 Connect with sacred temples across India
-🕉️ Receive prasad and blessings at home
-
-Visit: https://www.33kotidham.com
-
-May divine grace be with you! 🙏"""
-                print(f"📋 Using template: 33koti_promo (sandbox format)")
+                content_sid = settings.WHATSAPP_TEMPLATE_33KOTI_PROMO
+                # No variables needed for this template
+                print(f"📋 Using template: 33koti_promo")
+                print(f"   Content SID: {content_sid}")
                 
             elif template_name == "puja_promp":
+                content_sid = settings.WHATSAPP_TEMPLATE_PUJA_PROMO
+                
                 if not template_params or len(template_params) != 3:
-                    print(f"🔴 puja_promp requires 3 parameters")
+                    print(f"🔴 puja_promp requires 3 parameters: [message, benefit, url]")
                     return False
                 
-                puja_message = template_params[0]
-                benefit = template_params[1]
-                url = template_params[2]
+                # Map to template variables {{1}}, {{2}}, {{3}}
+                content_variables = {
+                    "1": template_params[0],  # Puja message
+                    "2": template_params[1],  # Benefit
+                    "3": template_params[2]   # URL
+                }
                 
-                message_body = f"""🙏 *33 Koti Dham - Special Puja* 🙏
-
-{puja_message}
-
-🎯 *Benefit:* {benefit}
-
-📖 Learn more and book:
-{url}
-
-🌟 May you be blessed with prosperity and peace! 🙏"""
-                print(f"📋 Using template: puja_promp (sandbox format)")
-                print(f"   Message: {puja_message[:50]}...")
+                print(f"📋 Using template: puja_promp")
+                print(f"   Content SID: {content_sid}")
+                print(f"   Variable {{{{1}}}}: {template_params[0][:50]}...")
+                print(f"   Variable {{{{2}}}}: {template_params[1][:50]}...")
+                print(f"   Variable {{{{3}}}}: {template_params[2]}")
             else:
                 print(f"🔴 Unknown template: {template_name}")
                 return False
 
-            if not message_body:
-                print(f"🔴 Failed to build message body")
+            if not content_sid:
+                print(f"🔴 Content SID not configured for template: {template_name}")
+                print(f"   Please set WHATSAPP_TEMPLATE_{template_name.upper()} in .env")
                 return False
 
-            print(f"📤 Twilio WhatsApp Send (Sandbox Compatible):")
-            print(f"   From: whatsapp:{settings.TWILIO_WHATSAPP_NUMBER}")
+            print(f"📤 Twilio WhatsApp Send (Content API):")
+            print(f"   From: {settings.TWILIO_WHATSAPP_NUMBER}")
             print(f"   To: whatsapp:{phone}")
-            print(f"   Message length: {len(message_body)}")
+            print(f"   Content SID: {content_sid}")
 
-            # Send via Twilio WhatsApp using free-form message (sandbox compatible)
+            # Send via Twilio WhatsApp using Content API (approved templates)
             try:
                 msg_params = {
-                    "body": message_body,
                     "from_": f"whatsapp:{settings.TWILIO_WHATSAPP_NUMBER}",
-                    "to": f"whatsapp:{phone}"
+                    "to": f"whatsapp:{phone}",
+                    "content_sid": content_sid
                 }
                 
-                # Add media if provided
-                if media_url:
-                    msg_params["media_url"] = [media_url]
-                    print(f"📸 Including media: {media_url}")
+                # Add content variables if present
+                if content_variables:
+                    msg_params["content_variables"] = json.dumps(content_variables)
+                    print(f"📝 Content variables: {content_variables}")
                 
-                print(f"📤 Sending free-form WhatsApp message...")
+                # Add media if provided (for templates that support media)
+                if media_url:
+                    print(f"📸 Media URL provided: {media_url}")
+                    print(f"   Note: Media is embedded in template, not sent separately")
+                
+                print(f"📤 Sending WhatsApp template message...")
                 
                 msg = client.messages.create(**msg_params)
 

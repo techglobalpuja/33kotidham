@@ -81,10 +81,16 @@ def send_bulk_whatsapp(
             "Participate in Baglamukhi Puja to remove all your horoscope Doshas for Prosperity and Maa Baglamukhi blessings.",
             "Remove horoscope Doshas",
             "https://www.33kotidham.com/puja/64"
-        ],
-        "media_url": "https://api.33kotidham.in/uploads/images/baglamukhi.png"
+        ]
     }
     ```
+    
+    Note: template_params maps to Meta template variables:
+    - template_params[0] → {{1}} (Puja message)
+    - template_params[1] → {{2}} (Benefit)  
+    - template_params[2] → {{3}} (URL)
+    
+    Media URLs should be configured in the Meta template itself, not sent separately.
     """
     if not request.phone_numbers:
         raise HTTPException(
